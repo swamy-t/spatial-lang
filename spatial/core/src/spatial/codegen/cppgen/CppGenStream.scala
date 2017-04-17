@@ -11,8 +11,12 @@ trait CppGenStream extends CppCodegen {
   import IR._
 
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case StreamInNew(bus) => emit(s"// ${quote(lhs)} = $bus // TODO: No idea what to connect this bus to, should expose periphal pins to something...")
-    case StreamOutNew(bus) => emit(s"// ${quote(lhs)} = $bus // TODO: No idea what to connect this bus to, should expose periphal pins to something...")
+    case StreamInNew(bus) =>
+      emit(
+        s"// ${quote(lhs)} = $bus // TODO: No idea what to connect this bus to, should expose periphal pins to something...")
+    case StreamOutNew(bus) =>
+      emit(
+        s"// ${quote(lhs)} = $bus // TODO: No idea what to connect this bus to, should expose periphal pins to something...")
     case _ => super.emitNode(lhs, rhs)
   }
 

@@ -9,17 +9,17 @@ object SimpleSequential extends SpatialTest {
   IR.testArgs = List("16", "16")
 
   def simpleSeq(xIn: Int, yIn: Int): Int = {
-    val innerPar = 1 (1 -> 1)
+    val innerPar = 1 (1   -> 1)
     val tileSize = 96 (96 -> 96)
 
-    val x = ArgIn[Int]
-    val y = ArgIn[Int]
+    val x   = ArgIn[Int]
+    val y   = ArgIn[Int]
     val out = ArgOut[Int]
     setArg(x, xIn)
     setArg(y, yIn)
     Accel {
       val bram = SRAM[Int](tileSize)
-      Foreach(tileSize by 1 par innerPar){ ii =>
+      Foreach(tileSize by 1 par innerPar) { ii =>
         bram(ii) = x.value * ii
       }
       out := bram(y.value)
@@ -29,11 +29,13 @@ object SimpleSequential extends SpatialTest {
 
   @virtualize
   def main() {
-    val x = args(0).to[Int]
-    val y = args(1).to[Int]
+    val x      = args(0).to[Int]
+    val y      = args(1).to[Int]
     val result = simpleSeq(x, y)
 
-    val a1 = Array.tabulate(96){i => x * i}
+    val a1 = Array.tabulate(96) { i =>
+      x * i
+    }
     val gold = a1(y)
 
     println("expected: " + gold)
@@ -43,7 +45,6 @@ object SimpleSequential extends SpatialTest {
     assert(chkSum)
   }
 }
-
 
 // Args: 16
 object DeviceMemcpy extends SpatialTest {
@@ -65,16 +66,18 @@ object DeviceMemcpy extends SpatialTest {
   @virtualize
   def main() {
     val arraySize = N
-    val c = args(0).to[Int]
+    val c         = args(0).to[Int]
 
-    val src = Array.tabulate(arraySize){i => i*c }
+    val src = Array.tabulate(arraySize) { i =>
+      i * c
+    }
     val dst = memcpyViaFPGA(src)
     println("Sent in: ")
-    for (i <- 0 until arraySize){ print(src(i) + " ") }
+    for (i <- 0 until arraySize) { print(src(i) + " ") }
     println("\nGot out: ")
-    for (i <- 0 until arraySize){ print(dst(i) + " ") }
+    for (i <- 0 until arraySize) { print(dst(i) + " ") }
     println("")
-    val chkSum = dst.zip(src){_ == _}.reduce{_&&_}
+    val chkSum = dst.zip(src) { _ == _ }.reduce { _ && _ }
     println("PASS: " + chkSum + " (DeviceMemcpy)")
     assert(chkSum)
   }
@@ -87,9 +90,9 @@ object SimpleTileLoadStore extends SpatialTest {
 
   val N = 192
 
-  def simpleLoadStore[T:Meta:Num](srcHost: Array[T], value: T) = {
-    val loadPar  = 1 (1 -> 1)
-    val storePar = 1 (1 -> 1)
+  def simpleLoadStore[T: Meta: Num](srcHost: Array[T], value: T) = {
+    val loadPar  = 1 (1   -> 1)
+    val storePar = 1 (1   -> 1)
     val tileSize = 96 (96 -> 96)
 
     val srcFPGA = DRAM[T](N)
@@ -97,22 +100,20 @@ object SimpleTileLoadStore extends SpatialTest {
     setMem(srcFPGA, srcHost)
 
     val size = ArgIn[Int]
-    val x = ArgIn[T]
+    val x    = ArgIn[T]
     setArg(x, value)
     setArg(size, N)
     Accel {
       val b1 = SRAM[T](tileSize)
       Sequential.Foreach(size by tileSize) { i =>
-
-
-        b1 load srcFPGA(i::i+tileSize)
+        b1 load srcFPGA(i :: i + tileSize)
 
         val b2 = SRAM[T](tileSize)
         Foreach(tileSize by 1) { ii =>
           b2(ii) = b1(ii) * x
         }
 
-        dstFPGA(i::i+tileSize) store b2
+        dstFPGA(i :: i + tileSize) store b2
       }
     }
     getMem(dstFPGA)
@@ -121,32 +122,37 @@ object SimpleTileLoadStore extends SpatialTest {
   @virtualize
   def main() {
     val arraySize = N
-    val value = args(0).to[Int]
+    val value     = args(0).to[Int]
 
-    val src = Array.tabulate[Int](arraySize) { i => i }
+    val src = Array.tabulate[Int](arraySize) { i =>
+      i
+    }
     val dst = simpleLoadStore(src, value)
 
     val gold = src.map { _ * value }
 
     println("Sent in: ")
-    (0 until arraySize) foreach { i => print(gold(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(gold(i) + " ")
+    }
     println("Got out: ")
-    (0 until arraySize) foreach { i => print(dst(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(dst(i) + " ")
+    }
     println("")
 
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (SimpleTileLoadStore)")
     assert(cksum)
   }
 }
-
 
 // Args: 960
 object FifoLoad extends SpatialTest {
   import IR._
   IR.testArgs = List("960")
 
-  def fifoLoad[T:Meta:Num](srcHost: Array[T], N: Int) = {
+  def fifoLoad[T: Meta: Num](srcHost: Array[T], N: Int) = {
     val tileSize = 96 (96 -> 96)
 
     val size = ArgIn[Int]
@@ -159,12 +165,12 @@ object FifoLoad extends SpatialTest {
     Accel {
       val f1 = FIFO[T](tileSize)
       Sequential.Foreach(size by tileSize) { i =>
-        f1 load srcFPGA(i::i + tileSize)
+        f1 load srcFPGA(i :: i + tileSize)
         val b1 = SRAM[T](tileSize)
         Foreach(tileSize by 1) { i =>
           b1(i) = f1.deq()
         }
-        dstFPGA(i::i + tileSize) store b1
+        dstFPGA(i :: i + tileSize) store b1
       }
       ()
     }
@@ -175,30 +181,35 @@ object FifoLoad extends SpatialTest {
   def main() {
     val arraySize = args(0).to[Int]
 
-    val src = Array.tabulate(arraySize){i => i }
+    val src = Array.tabulate(arraySize) { i =>
+      i
+    }
     val dst = fifoLoad(src, arraySize)
 
     val gold = src
 
     println("Sent in: ")
-    (0 until arraySize) foreach { i => print(gold(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(gold(i) + " ")
+    }
     println("Got out:")
-    (0 until arraySize) foreach { i => print(dst(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(dst(i) + " ")
+    }
     println("")
 
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (FifoLoadTest)")
     assert(cksum)
   }
 }
-
 
 // 6
 object ParFifoLoad extends SpatialTest {
   import IR._
   IR.testArgs = List("192")
 
-  def parFifoLoad[T:Meta:Num](src1: Array[T], src2: Array[T], in: Int) = {
+  def parFifoLoad[T: Meta: Num](src1: Array[T], src2: Array[T], in: Int) = {
 
     val tileSize = 96 (96 -> 96)
 
@@ -207,7 +218,7 @@ object ParFifoLoad extends SpatialTest {
 
     val src1FPGA = DRAM[T](N)
     val src2FPGA = DRAM[T](N)
-    val out = ArgOut[T]
+    val out      = ArgOut[T]
     setMem(src1FPGA, src1)
     setMem(src2FPGA, src2)
 
@@ -216,12 +227,12 @@ object ParFifoLoad extends SpatialTest {
       val f2 = FIFO[T](tileSize)
       Foreach(N by tileSize) { i =>
         Parallel {
-          f1 load src1FPGA(i::i+tileSize)
-          f2 load src2FPGA(i::i+tileSize)
+          f1 load src1FPGA(i :: i + tileSize)
+          f2 load src2FPGA(i :: i + tileSize)
         }
-        val accum = Reduce(Reg[T](0.to[T]))(tileSize by 1){i =>
+        val accum = Reduce(Reg[T](0.to[T]))(tileSize by 1) { i =>
           f1.deq() * f2.deq()
-        }{_+_}
+        } { _ + _ }
         Pipe { out := accum }
       }
       ()
@@ -233,16 +244,26 @@ object ParFifoLoad extends SpatialTest {
   def main() {
     val arraySize = args(0).to[Int]
 
-    val src1 = Array.tabulate(arraySize) { i => i }
-    val src2 = Array.tabulate(arraySize) { i => i*2 }
+    val src1 = Array.tabulate(arraySize) { i =>
+      i
+    }
+    val src2 = Array.tabulate(arraySize) { i =>
+      i * 2
+    }
     val out = parFifoLoad(src1, src2, arraySize)
 
-    val sub1_for_check = Array.tabulate(arraySize-96) {i => i}
-    val sub2_for_check = Array.tabulate(arraySize-96) {i => i*2}
-    val sub = if (arraySize <= 96) lift(0) else sub1_for_check.zip(sub2_for_check){_*_}.reduce(_+_)
+    val sub1_for_check = Array.tabulate(arraySize - 96) { i =>
+      i
+    }
+    val sub2_for_check = Array.tabulate(arraySize - 96) { i =>
+      i * 2
+    }
+    val sub =
+      if (arraySize <= 96) lift(0)
+      else sub1_for_check.zip(sub2_for_check) { _ * _ }.reduce(_ + _)
 
     // val gold = src1.zip(src2){_*_}.zipWithIndex.filter( (a:Int, i:Int) => i > arraySize-96).reduce{_+_}
-    val gold = src1.zip(src2){_*_}.reduce{_+_} - sub
+    val gold = src1.zip(src2) { _ * _ }.reduce { _ + _ } - sub
     println("gold = " + gold)
     println("out = " + out)
 
@@ -252,13 +273,12 @@ object ParFifoLoad extends SpatialTest {
   }
 }
 
-
 object FifoLoadStore extends SpatialTest {
   import IR._
 
   val N = 192
 
-  def fifoLoadStore[T:Meta:Bits](srcHost: Array[T]) = {
+  def fifoLoadStore[T: Meta: Bits](srcHost: Array[T]) = {
     val tileSize = N
 
     val srcFPGA = DRAM[T](N)
@@ -269,8 +289,8 @@ object FifoLoadStore extends SpatialTest {
       val f1 = FIFO[T](tileSize)
       // Parallel {
       Sequential {
-        f1 load srcFPGA(0::tileSize)
-        dstFPGA(0::tileSize) store f1
+        f1 load srcFPGA(0 :: tileSize)
+        dstFPGA(0 :: tileSize) store f1
       }
       // Pipe(tileSize by 1) { i => // This pipe forces the loadstore to run for enough iters
       //   dummyOut := i
@@ -285,24 +305,29 @@ object FifoLoadStore extends SpatialTest {
   def main() {
     val arraySize = N
 
-    val src = Array.tabulate(arraySize) { i => i }
+    val src = Array.tabulate(arraySize) { i =>
+      i
+    }
     val dst = fifoLoadStore(src)
 
     val gold = src
 
     println("gold:")
-    (0 until arraySize) foreach { i => print(gold(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(gold(i) + " ")
+    }
     println("")
     println("dst:")
-    (0 until arraySize) foreach { i => print(dst(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(dst(i) + " ")
+    }
     println("")
 
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (FifoLoadStore)")
     assert(cksum)
   }
 }
-
 
 object SimpleReduce extends SpatialTest { // Args: 72
   import IR._
@@ -310,17 +335,17 @@ object SimpleReduce extends SpatialTest { // Args: 72
 
   val N = 96.to[Int]
 
-  def simpleReduce[T:Meta:Num](xin: T) = {
+  def simpleReduce[T: Meta: Num](xin: T) = {
     val P = param(8)
 
-    val x = ArgIn[T]
+    val x   = ArgIn[T]
     val out = ArgOut[T]
     setArg(x, xin)
 
     Accel {
-      out := Reduce(Reg[T](0.to[T]))(N by 1){ ii =>
+      out := Reduce(Reg[T](0.to[T]))(N by 1) { ii =>
         x.value * ii.to[T]
-      }{_+_}
+      } { _ + _ }
     }
     getArg(out)
   }
@@ -331,7 +356,11 @@ object SimpleReduce extends SpatialTest { // Args: 72
 
     val result = simpleReduce(x)
 
-    val gold = Array.tabulate(N){i => x * i}.reduce{_+_}
+    val gold = Array
+      .tabulate(N) { i =>
+        x * i
+      }
+      .reduce { _ + _ }
     println("expected: " + gold)
     println("result:   " + result)
 
@@ -341,7 +370,6 @@ object SimpleReduce extends SpatialTest { // Args: 72
   }
 }
 
-
 // Args: 192
 object Niter extends SpatialTest {
   import IR._
@@ -349,21 +377,21 @@ object Niter extends SpatialTest {
 
   val constTileSize = 96
 
-  def nIterTest[T:Meta:Num](len: Int): T = {
-    val innerPar = 1 (1 -> 1)
-    val tileSize = constTileSize (constTileSize -> constTileSize)
+  def nIterTest[T: Meta: Num](len: Int): T = {
+    val innerPar = 1 (1                        -> 1)
+    val tileSize = constTileSize(constTileSize -> constTileSize)
     bound(len) = 9216
 
-    val N = ArgIn[Int]
+    val N   = ArgIn[Int]
     val out = ArgOut[T]
     setArg(N, len)
 
     Accel {
       Sequential {
-        Sequential.Foreach(N by tileSize){ i =>
-          val accum = Reduce(Reg[T](0.to[T]))(tileSize par innerPar){ ii =>
+        Sequential.Foreach(N by tileSize) { i =>
+          val accum = Reduce(Reg[T](0.to[T]))(tileSize par innerPar) { ii =>
             (i + ii).to[T]
-          } {_+_}
+          } { _ + _ }
           Pipe { out := accum }
         }
       }
@@ -378,9 +406,11 @@ object Niter extends SpatialTest {
 
     val result = nIterTest[Int](len)
 
-    val b1 = Array.tabulate(len){i => i}
+    val b1 = Array.tabulate(len) { i =>
+      i
+    }
 
-    val gold = b1.reduce{_+_} - ((len-constTileSize) * (len-constTileSize-1))/2
+    val gold = b1.reduce { _ + _ } - ((len - constTileSize) * (len - constTileSize - 1)) / 2
     println("expected: " + gold)
     println("result:   " + result)
 
@@ -397,13 +427,13 @@ object SimpleFold extends SpatialTest {
 
   val constTileSize = 96
 
-  def simple_fold[T:Meta:Num](src: Array[T]) = {
+  def simple_fold[T: Meta: Num](src: Array[T]) = {
     val outerPar = 16 (16 -> 16)
     val innerPar = 16 (16 -> 16)
-    val tileSize = constTileSize (constTileSize -> constTileSize)
-    val len = src.length; bound(len) = 9216
+    val tileSize = constTileSize(constTileSize -> constTileSize)
+    val len      = src.length; bound(len) = 9216
 
-    val N = ArgIn[Int]
+    val N   = ArgIn[Int]
     val out = ArgOut[T]
     setArg(N, len)
 
@@ -412,13 +442,13 @@ object SimpleFold extends SpatialTest {
 
     Accel {
       val accum = Reg[T](0.to[T])
-      Reduce(accum)(N by tileSize par outerPar){ i =>
+      Reduce(accum)(N by tileSize par outerPar) { i =>
         val b1 = SRAM[T](tileSize)
-        b1 load v1(i::i+tileSize)
-        Reduce(Reg[T](0.to[T]))(tileSize par innerPar){ ii =>
+        b1 load v1(i :: i + tileSize)
+        Reduce(Reg[T](0.to[T]))(tileSize par innerPar) { ii =>
           b1(ii)
-        } {_+_}
-      } {_+_}
+        } { _ + _ }
+      } { _ + _ }
       Pipe { out := accum }
     }
 
@@ -429,10 +459,12 @@ object SimpleFold extends SpatialTest {
   def main() {
     val len = args(0).to[Int]
 
-    val src = Array.tabulate(len){i => i}
+    val src = Array.tabulate(len) { i =>
+      i
+    }
     val result = simple_fold(src)
 
-    val gold = src.reduce{_+_}
+    val gold = src.reduce { _ + _ }
     println("expected: " + gold)
     println("result:   " + result)
 
@@ -449,7 +481,7 @@ object Memcpy2D extends SpatialTest {
   val R = 96
   val C = 96
 
-  def memcpy_2d[T:Meta:Num](src: Array[T], rows: Int, cols: Int): Array[T] = {
+  def memcpy_2d[T: Meta: Num](src: Array[T], rows: Int, cols: Int): Array[T] = {
     val tileDim1 = param(96)
     val tileDim2 = 96 (96 -> 96)
 
@@ -463,10 +495,10 @@ object Memcpy2D extends SpatialTest {
     setMem(srcFPGA, src)
 
     Accel {
-      Sequential.Foreach(rowsIn by tileDim1, colsIn by tileDim2) { (i,j) =>
+      Sequential.Foreach(rowsIn by tileDim1, colsIn by tileDim2) { (i, j) =>
         val tile = SRAM[T](tileDim1, tileDim2)
-        tile load srcFPGA(i::i+tileDim1, j::j+tileDim2)
-        dstFPGA (i::i+tileDim1, j::j+tileDim2) store tile
+        tile load srcFPGA(i :: i + tileDim1, j :: j + tileDim2)
+        dstFPGA(i :: i + tileDim1, j :: j + tileDim2) store tile
       }
     }
     getMem(dstFPGA)
@@ -476,19 +508,20 @@ object Memcpy2D extends SpatialTest {
   def main() = {
     val rows = R
     val cols = C
-    val src = Array.tabulate(rows*cols) { i => i }
+    val src = Array.tabulate(rows * cols) { i =>
+      i
+    }
 
     val dst = memcpy_2d(src, rows, cols)
 
     printArray(src, "src:")
     printArray(dst, "dst:")
 
-    val cksum = dst.zip(src){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(src) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (MemCpy2D)")
     assert(cksum)
   }
 }
-
 
 // Args: 1920
 object BlockReduce1D extends SpatialTest {
@@ -496,9 +529,9 @@ object BlockReduce1D extends SpatialTest {
   IR.testArgs = List("1920")
 
   val tileSize = 96
-  val p = 2
+  val p        = 2
 
-  def blockreduce_1d[T:Meta:Num](src: Array[T], size: Int) = {
+  def blockreduce_1d[T: Meta: Num](src: Array[T], size: Int) = {
     val sizeIn = ArgIn[Int]
     setArg(sizeIn, size)
 
@@ -509,12 +542,12 @@ object BlockReduce1D extends SpatialTest {
 
     Accel {
       val accum = SRAM[T](tileSize)
-      MemReduce(accum)(sizeIn by tileSize){ i  =>
+      MemReduce(accum)(sizeIn by tileSize) { i =>
         val tile = SRAM[T](tileSize)
-        tile load srcFPGA(i::i+tileSize)
+        tile load srcFPGA(i :: i + tileSize)
         tile
-      }{_+_}
-      dstFPGA (0::tileSize) store accum
+      } { _ + _ }
+      dstFPGA(0 :: tileSize) store accum
     }
     getMem(dstFPGA)
   }
@@ -522,18 +555,22 @@ object BlockReduce1D extends SpatialTest {
   @virtualize
   def main() = {
     val size = args(0).to[Int]
-    val src = Array.tabulate(size){i => i }
+    val src = Array.tabulate(size) { i =>
+      i
+    }
 
     val dst = blockreduce_1d(src, size)
 
-    val iters = size/tileSize
-    val first = ((iters*(iters-1))/2)*tileSize
+    val iters = size / tileSize
+    val first = ((iters * (iters - 1)) / 2) * tileSize
 
-    val gold = Array.tabulate(tileSize) { i => first + i*iters }
+    val gold = Array.tabulate(tileSize) { i =>
+      first + i * iters
+    }
 
     printArray(gold, "src:")
     printArray(dst, "dst:")
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (BlockReduce1D)")
     assert(cksum)
     //    (0 until tileSize) foreach { i => assert(dst(i) == gold(i)) }
@@ -547,24 +584,26 @@ object UnalignedLd extends SpatialTest {
 
   val N = 19200
 
-  val numCols = 8
+  val numCols    = 8
   val paddedCols = 1920
 
-  def unaligned_1d[T:Meta:Num](src: Array[T], ii: Int) = {
-    val iters = ArgIn[Int]
+  def unaligned_1d[T: Meta: Num](src: Array[T], ii: Int) = {
+    val iters   = ArgIn[Int]
     val srcFPGA = DRAM[T](paddedCols)
-    val acc = ArgOut[T]
+    val acc     = ArgOut[T]
 
     setArg(iters, ii)
     setMem(srcFPGA, src)
 
     Accel {
-      val mem = SRAM[T](96)
+      val mem   = SRAM[T](96)
       val accum = Reg[T](0.to[T])
       Reduce(accum)(iters by 1) { k =>
-        mem load srcFPGA(k*numCols::k*numCols+numCols)
-        Reduce(Reg[T](0.to[T]))(numCols by 1){i => mem(i) }{_+_}
-      }{_+_}
+        mem load srcFPGA(k * numCols :: k * numCols + numCols)
+        Reduce(Reg[T](0.to[T]))(numCols by 1) { i =>
+          mem(i)
+        } { _ + _ }
+      } { _ + _ }
       acc := accum
     }
     getArg(acc)
@@ -573,13 +612,19 @@ object UnalignedLd extends SpatialTest {
   @virtualize
   def main() = {
     // val size = args(0).to[Int]
-    val ii = args(0).to[Int]
+    val ii   = args(0).to[Int]
     val size = paddedCols
-    val src = Array.tabulate(size) {i => i }
+    val src = Array.tabulate(size) { i =>
+      i
+    }
 
     val dst = unaligned_1d(src, ii)
 
-    val gold = Array.tabulate(ii*numCols){ i => i }.reduce{_+_}
+    val gold = Array
+      .tabulate(ii * numCols) { i =>
+        i
+      }
+      .reduce { _ + _ }
 
     println("src:" + gold)
     println("dst:" + dst)
@@ -594,7 +639,9 @@ class UnitTests extends FlatSpec with Matchers {
   SpatialConfig.enableSim = true
   "SimpleSequential" should "compile" in { SimpleSequential.main(Array.empty) }
   "DeviceMemcpy" should "compile" in { DeviceMemcpy.main(Array.empty) }
-  "SimpleTileLoadStore" should "compile" in { SimpleTileLoadStore.main(Array.empty) }
+  "SimpleTileLoadStore" should "compile" in {
+    SimpleTileLoadStore.main(Array.empty)
+  }
   "FifoLoad" should "compile" in { FifoLoad.main(Array.empty) }
   "ParFifoLoad" should "compile" in { ParFifoLoad.main(Array.empty) }
   "FifoLoadStore" should "compile" in { FifoLoadStore.main(Array.empty) }

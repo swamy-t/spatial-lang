@@ -4,7 +4,7 @@ import argon.codegen.scalagen.ScalaCodegen
 import spatial.SpatialExp
 import spatial.api.RangeExp
 
-trait ScalaGenRange extends ScalaCodegen{
+trait ScalaGenRange extends ScalaCodegen {
   val IR: SpatialExp
   import IR._
 

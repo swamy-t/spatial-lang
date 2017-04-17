@@ -17,7 +17,7 @@ object ArgInOut extends SpatialApp {
     }
 
     val result = getArg(y)
-    val gold = N + 4
+    val gold   = N + 4
     println("expected: " + gold)
     println("result: " + result)
   }

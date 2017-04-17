@@ -5,7 +5,7 @@ object StreamInOut extends SpatialApp {
   import IR._
 
   def main() {
-    case object Input extends Bus { val length = 32 }
+    case object Input  extends Bus { val length = 32 }
     case object Output extends Bus { val length = 32 }
 
     val input  = StreamIn[Int32](Input)

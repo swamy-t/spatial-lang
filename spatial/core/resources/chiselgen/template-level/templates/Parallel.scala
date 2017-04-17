@@ -7,20 +7,20 @@ import chisel3._
 class Parallel(val n: Int, val isFSM: Boolean = false) extends Module {
   val io = IO(new Bundle {
     val input = new Bundle {
-      val enable = Input(Bool())
-      val stageDone = Vec(n, Input(Bool()))
-      val forever = Input(Bool())
-      val rst = Input(Bool())
+      val enable       = Input(Bool())
+      val stageDone    = Vec(n, Input(Bool()))
+      val forever      = Input(Bool())
+      val rst          = Input(Bool())
       val hasStreamIns = Input(Bool()) // Not used, here for codegen compatibility
 
       // FSM signals
       val nextState = Input(UInt(32.W))
     }
     val output = new Bundle {
-      val done = Output(Bool())
+      val done        = Output(Bool())
       val stageEnable = Vec(n, Output(Bool()))
-      val rst_en = Output(Bool())
-      val ctr_inc = Output(Bool())
+      val rst_en      = Output(Bool())
+      val ctr_inc     = Output(Bool())
       // FSM signals
       val state = Output(UInt(32.W))
     }
@@ -28,10 +28,10 @@ class Parallel(val n: Int, val isFSM: Boolean = false) extends Module {
 
   // 0: INIT, 1: Separate reset from enables, 2 stages enabled, 3: DONE
   // Name the universal states
-  val initState = 0
-  val bufferState = initState + 1
+  val initState    = 0
+  val bufferState  = initState + 1
   val runningState = bufferState + 1
-  val doneState = runningState + 1
+  val doneState    = runningState + 1
 
   // Create FF for holding state
   val stateFF = Module(new FF(2))
@@ -55,47 +55,51 @@ class Parallel(val n: Int, val isFSM: Boolean = false) extends Module {
 
   io.output.rst_en := false.B
 
-  io.output.stageEnable.foreach { s => s := false.B}
+  io.output.stageEnable.foreach { s =>
+    s := false.B
+  }
   // State Machine
   when(io.input.enable) {
-    when(state === initState.U) {   // INIT -> RESET
+    when(state === initState.U) { // INIT -> RESET
       stateFF.io.input.data := bufferState.U
       io.output.rst_en := true.B
-    }.elsewhen (state === bufferState.U) { // Not sure if this state is needed for stream
-      io.output.rst_en := false.B
-      stateFF.io.input.data := runningState.U
-    }.elsewhen (state === runningState.U) {  // STEADY
-      (0 until n).foreach { i => io.output.stageEnable(i) := Mux(io.input.forever, true.B, ~doneMask(i)) }
+    }.elsewhen(state === bufferState.U) { // Not sure if this state is needed for stream
+        io.output.rst_en := false.B
+        stateFF.io.input.data := runningState.U
+      }
+      .elsewhen(state === runningState.U) { // STEADY
+        (0 until n).foreach { i =>
+          io.output.stageEnable(i) := Mux(io.input.forever,
+                                          true.B,
+                                          ~doneMask(i))
+        }
 
-      val doneTree = doneMask.reduce { _ & _ }
-      when(doneTree === 1.U) {
-        stateFF.io.input.data := Mux(io.input.forever, runningState.U, doneState.U)
-      }.otherwise {
+        val doneTree = doneMask.reduce { _ & _ }
+        when(doneTree === 1.U) {
+          stateFF.io.input.data := Mux(io.input.forever,
+                                       runningState.U,
+                                       doneState.U)
+        }.otherwise {
+          stateFF.io.input.data := state
+        }
+      }
+      .elsewhen(state === doneState.U) { // DONE
+        stateFF.io.input.data := initState.U
+      }
+      .otherwise {
         stateFF.io.input.data := state
       }
-    }.elsewhen (state === doneState.U) {  // DONE
-      stateFF.io.input.data := initState.U
-    }.otherwise {
-      stateFF.io.input.data := state
-    }
   }.otherwise {
     stateFF.io.input.data := initState.U
-    (0 until n).foreach { i => io.output.stageEnable(i) := false.B }
+    (0 until n).foreach { i =>
+      io.output.stageEnable(i) := false.B
+    }
   }
 
   // Output logic
   io.output.done := state === doneState.U
   io.output.ctr_inc := false.B // No counters for parallels (BUT MAYBE NEEDED FOR STREAMPIPES)
 }
-
-
-
-
-
-
-
-
-
 // class ParallelTests(c: Parallel) extends PlasticineTester(c) {
 //   val numIter = 5
 //   val stageIterCount = List.tabulate(c.numInputs) { i => math.abs(rnd.nextInt) % 10 }
@@ -138,8 +142,6 @@ class Parallel(val n: Int, val isFSM: Boolean = false) extends Module {
 //     numCycles += 1
 //   }
 // }
-
-
 // object ParallelTest {
 
 //   def main(args: Array[String]): Unit = {

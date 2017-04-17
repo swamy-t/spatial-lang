@@ -4,33 +4,36 @@ import chisel3._
 import types._
 
 /**
- * FF: Flip-flop with the ability to set enable and init
- * value as IO
- * @param w: Word width
- */
-
+  * FF: Flip-flop with the ability to set enable and init
+  * value as IO
+  * @param w: Word width
+  */
 class FFIn(val w: Int) extends Bundle {
   val data   = UInt(w.W)
-  val init = UInt(w.W)
+  val init   = UInt(w.W)
   val enable = Bool()
-  val reset = Bool() // Asynchronous reset
+  val reset  = Bool() // Asynchronous reset
 
-  override def cloneType = (new FFIn(w)).asInstanceOf[this.type] // See chisel3 bug 358
+  override def cloneType =
+    (new FFIn(w)).asInstanceOf[this.type] // See chisel3 bug 358
 }
 class FFOut(val w: Int) extends Bundle {
-  val data  = UInt(w.W)
+  val data = UInt(w.W)
 
-  override def cloneType = (new FFOut(w)).asInstanceOf[this.type] // See chisel3 bug 358
+  override def cloneType =
+    (new FFOut(w)).asInstanceOf[this.type] // See chisel3 bug 358
 }
 
 class FF(val w: Int) extends Module {
-  val io = IO(new Bundle{
-    val input = Input(new FFIn(w))
+  val io = IO(new Bundle {
+    val input  = Input(new FFIn(w))
     val output = Output(new FFOut(w))
   })
-  
+
   val ff = RegInit(io.input.init)
-  ff := Mux(io.input.reset, io.input.init, Mux(io.input.enable, io.input.data, ff))
+  ff := Mux(io.input.reset,
+            io.input.init,
+            Mux(io.input.enable, io.input.data, ff))
   io.output.data := Mux(io.input.reset, io.input.init, ff)
 
   def write[T](data: T, en: Bool, reset: Bool, port: List[Int]) {
@@ -61,31 +64,39 @@ class NBufFF(val numBufs: Int, val w: Int) extends Module {
   def this(tuple: (Int, Int)) = this(tuple._1, tuple._2)
 
   val io = IO(new Bundle {
-    val sEn = Vec(numBufs, Input(Bool()))
-    val sDone = Vec(numBufs, Input(Bool()))
-    val broadcast = Input(new FFIn(w))
-    val input = Input(new FFIn(w))
+    val sEn         = Vec(numBufs, Input(Bool()))
+    val sDone       = Vec(numBufs, Input(Bool()))
+    val broadcast   = Input(new FFIn(w))
+    val input       = Input(new FFIn(w))
     val writerStage = Input(UInt(5.W)) // TODO: Not implemented anywhere, not sure if needed
-    val output = Vec(numBufs, Output(new FFOut(w)))
+    val output      = Vec(numBufs, Output(new FFOut(w)))
     // val swapAlert = Output(Bool()) // Used for regchains
   })
 
-  def bitsToAddress(k:Int) = {(scala.math.log(k)/scala.math.log(2)).toInt + 1}
+  def bitsToAddress(k: Int) = {
+    (scala.math.log(k) / scala.math.log(2)).toInt + 1
+  }
   // def rotate[T](x: Vec[T], i:Int)={ // Chisel is so damn annoying with types, so this method doesn't work
   //   val temp = x.toList
   //   val result = x.drop(i)++x.take(i)
   //   Vec(result.toArray)
   // }
 
-  val ff = (0 until numBufs).map{i => Module(new FF(w))}
+  val ff = (0 until numBufs).map { i =>
+    Module(new FF(w))
+  }
 
-  val sEn_latch = (0 until numBufs).map{i => Module(new SRFF())}
-  val sDone_latch = (0 until numBufs).map{i => Module(new SRFF())}
+  val sEn_latch = (0 until numBufs).map { i =>
+    Module(new SRFF())
+  }
+  val sDone_latch = (0 until numBufs).map { i =>
+    Module(new SRFF())
+  }
 
   val swap = Wire(Bool())
 
   // Latch whether each buffer's stage is enabled and when they are done
-  (0 until numBufs).foreach{ i => 
+  (0 until numBufs).foreach { i =>
     sEn_latch(i).io.input.set := io.sEn(i)
     sEn_latch(i).io.input.reset := swap
     sEn_latch(i).io.input.asyn_reset := reset
@@ -93,17 +104,24 @@ class NBufFF(val numBufs: Int, val w: Int) extends Module {
     sDone_latch(i).io.input.reset := swap
     sDone_latch(i).io.input.asyn_reset := reset
   }
-  val anyEnabled = sEn_latch.map{ en => en.io.output.data }.reduce{_|_}
-  swap := sEn_latch.zip(sDone_latch).map{ case (en, done) => en.io.output.data === done.io.output.data }.reduce{_&_} & anyEnabled
+  val anyEnabled = sEn_latch
+    .map { en =>
+      en.io.output.data
+    }
+    .reduce { _ | _ }
+  swap := sEn_latch
+    .zip(sDone_latch)
+    .map { case (en, done) => en.io.output.data === done.io.output.data }
+    .reduce { _ & _ } & anyEnabled
   // io.swapAlert := ~swap & anyEnabled & (0 until numBufs).map{ i => sEn_latch(i).io.output.data === (sDone_latch(i).io.output.data | io.sDone(i))}.reduce{_&_} // Needs to go high when the last done goes high, which is 1 cycle before swap goes high
 
   val stateIn = Module(new NBufCtr())
-  stateIn.io.input.start := 0.U 
+  stateIn.io.input.start := 0.U
   stateIn.io.input.max := numBufs.U
   stateIn.io.input.enable := swap
   stateIn.io.input.countUp := false.B
 
-  val statesOut = (0 until numBufs).map{  i => 
+  val statesOut = (0 until numBufs).map { i =>
     val c = Module(new NBufCtr())
     c.io.input.start := i.U
     c.io.input.max := numBufs.U
@@ -112,19 +130,25 @@ class NBufFF(val numBufs: Int, val w: Int) extends Module {
     c
   }
 
-  ff.zipWithIndex.foreach{ case (f,i) => 
-    val wrMask = stateIn.io.output.count === i.U
-    val normal =  Wire(new FFIn(w))
-    normal.data := io.input.data
-    normal.init := io.input.init
-    normal.enable := io.input.enable & wrMask
-    normal.reset := io.input.reset
-    f.io.input := Mux(io.broadcast.enable, io.broadcast, normal)
+  ff.zipWithIndex.foreach {
+    case (f, i) =>
+      val wrMask = stateIn.io.output.count === i.U
+      val normal = Wire(new FFIn(w))
+      normal.data := io.input.data
+      normal.init := io.input.init
+      normal.enable := io.input.enable & wrMask
+      normal.reset := io.input.reset
+      f.io.input := Mux(io.broadcast.enable, io.broadcast, normal)
   }
 
-  io.output.zip(statesOut).foreach{ case (wire, s) => 
-    val sel = (0 until numBufs).map{ i => s.io.output.count === i.U }
-    wire.data := chisel3.util.Mux1H(sel, Vec(ff.map{f => f.io.output.data}))
+  io.output.zip(statesOut).foreach {
+    case (wire, s) =>
+      val sel = (0 until numBufs).map { i =>
+        s.io.output.count === i.U
+      }
+      wire.data := chisel3.util.Mux1H(sel, Vec(ff.map { f =>
+        f.io.output.data
+      }))
   }
 
   def write[T](data: T, en: Bool, reset: Bool, port: Int) {
@@ -135,32 +159,32 @@ class NBufFF(val numBufs: Int, val w: Int) extends Module {
 
     if (ports.length == 1) {
       val port = ports(0)
-      data match { 
-        case d: UInt => 
+      data match {
+        case d: UInt =>
           io.input.data := d
-        case d: types.FixedPoint => 
+        case d: types.FixedPoint =>
           io.input.data := d.number
       }
       io.input.enable := en
       io.input.reset := reset
       io.writerStage := port.U
     } else {
-      data match { 
-        case d: UInt => 
+      data match {
+        case d: UInt =>
           io.broadcast.data := d
-        case d: types.FixedPoint => 
+        case d: types.FixedPoint =>
           io.broadcast.data := d.number
       }
       io.broadcast.enable := en
-      io.broadcast.reset := reset      
+      io.broadcast.reset := reset
     }
   }
 
   def chain_pass[T](dat: T, en: Bool) { // Method specifically for handling reg chains that pass counter values between metapipe stages
     dat match {
-      case data: UInt => 
+      case data: UInt =>
         io.input.data := data
-      case data: FixedPoint => 
+      case data: FixedPoint =>
         io.input.data := data.number
     }
     io.input.enable := en
@@ -172,24 +196,24 @@ class NBufFF(val numBufs: Int, val w: Int) extends Module {
   }
 
   def connectStageCtrl(done: Bool, en: Bool, ports: List[Int]) {
-    ports.foreach{ port => 
+    ports.foreach { port =>
       io.sEn(port) := en
       io.sDone(port) := done
     }
   }
 
   def connectUnwrittenPorts(ports: List[Int]) { // TODO: Remnant from maxj?
-    // ports.foreach{ port => 
+    // ports.foreach{ port =>
     //   io.input(port).enable := false.B
     // }
   }
- 
+
   def connectUnreadPorts(ports: List[Int]) { // TODO: Remnant from maxj?
     // Used for SRAMs
   }
 
   def connectUntouchedPorts(ports: List[Int]) {
-    ports.foreach{ port => 
+    ports.foreach { port =>
       io.sEn(port) := false.B
       io.sDone(port) := false.B
     }
@@ -206,8 +230,8 @@ class NBufFF(val numBufs: Int, val w: Int) extends Module {
 }
 
 class FFNoInit(val w: Int) extends Module {
-  val io = IO(new Bundle{
-    val input = Input(new FFIn(w))
+  val io = IO(new Bundle {
+    val input  = Input(new FFIn(w))
     val output = Output(new FFOut(w))
   })
 
@@ -220,8 +244,8 @@ class FFNoInit(val w: Int) extends Module {
 }
 
 class FFNoInitNoReset(val w: Int) extends Module {
-  val io = IO(new Bundle{
-    val input = Input(new FFIn(w))
+  val io = IO(new Bundle {
+    val input  = Input(new FFIn(w))
     val output = Output(new FFOut(w))
   })
 
@@ -234,8 +258,8 @@ class FFNoInitNoReset(val w: Int) extends Module {
 }
 
 class FFNoReset(val w: Int) extends Module {
-  val io = IO(new Bundle{
-    val input = Input(new FFIn(w))
+  val io = IO(new Bundle {
+    val input  = Input(new FFIn(w))
     val output = Output(new FFOut(w))
   })
 
@@ -257,7 +281,7 @@ class TFF() extends Module {
       val enable = Input(Bool())
     }
     val output = new Bundle {
-      val data = Output(Bool())      
+      val data = Output(Bool())
     }
   })
 
@@ -273,27 +297,27 @@ class SRFF(val strongReset: Boolean = false) extends Module {
 
   val io = IO(new Bundle {
     val input = new Bundle {
-      val set = Input(Bool()) // Set overrides reset.  Asyn_reset overrides both
-      val reset = Input(Bool())
+      val set        = Input(Bool()) // Set overrides reset.  Asyn_reset overrides both
+      val reset      = Input(Bool())
       val asyn_reset = Input(Bool())
     }
     val output = new Bundle {
-      val data = Output(Bool())      
+      val data = Output(Bool())
     }
   })
 
   if (!strongReset) { // Set + reset = on
     val ff = RegInit(false.B)
-    ff := Mux(io.input.asyn_reset, false.B, Mux(io.input.set, 
-                                    true.B, Mux(io.input.reset, false.B, ff)))
+    ff := Mux(io.input.asyn_reset,
+              false.B,
+              Mux(io.input.set, true.B, Mux(io.input.reset, false.B, ff)))
     io.output.data := Mux(io.input.asyn_reset, false.B, ff)
   } else { // Set + reset = off
     val ff = RegInit(false.B)
-    ff := Mux(io.input.asyn_reset, false.B, Mux(io.input.reset, 
-                                    false.B, Mux(io.input.set, true.B, ff)))
+    ff := Mux(io.input.asyn_reset,
+              false.B,
+              Mux(io.input.reset, false.B, Mux(io.input.set, true.B, ff)))
     io.output.data := Mux(io.input.asyn_reset, false.B, ff)
 
   }
 }
-
-

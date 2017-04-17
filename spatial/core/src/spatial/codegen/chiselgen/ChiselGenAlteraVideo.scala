@@ -10,7 +10,7 @@ trait ChiselGenAlteraVideo extends ChiselCodegen with FileDependencies {
   val IR: SpatialExp
   import IR._
 
-  var dmas: List[Exp[Any]] = List()
+  var dmas: List[Exp[Any]]     = List()
   var decoders: List[Exp[Any]] = List()
 
   // override protected def bitWidth(tp: Type[_]): Int = tp match {
@@ -24,16 +24,14 @@ trait ChiselGenAlteraVideo extends ChiselCodegen with FileDependencies {
 //  dependencies ::= FileDep("chiselgen", "altera-goodies/altera_up_avalon_video_decoder")
 //  dependencies ::= FileDep("chiselgen", "altera-goodies/altera_up_avalon_video_dma_controller")
 
-
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
     case AxiMSNew() =>
-
-    case DecoderTemplateNew(popFrom, pushTo) => 
+    case DecoderTemplateNew(popFrom, pushTo) =>
       dmas = dmas :+ lhs
       emit(src"${pushTo}.io.in := io.video_decoder_ios.stream_out_data(0)")
       emit(src"${pushTo}.io.push := io.video_decoder_ios.stream_out_valid(0)")
 
-    case DMATemplateNew(popFrom, loadIn) => 
+    case DMATemplateNew(popFrom, loadIn) =>
       decoders = decoders :+ lhs
       emit(src"io.dma_tomem_ios.stream_data(0) := ${popFrom}.io.out")
       emit(src"${popFrom}.io.pop := io.dma_tomem_ios.stream_valid(0)")
@@ -79,7 +77,6 @@ trait ChiselGenAlteraVideo extends ChiselCodegen with FileDependencies {
     //   emit(s"val slave_readdata = Vec(0, Output(UInt(32.W))) // Probably based on wrong length")
     //   close("}")
     //   open(s"""class DMA_frommem_io() extends Bundle{""")
-
 
     //   emit(s"val DW          =  15; // Frame's datawidth")
     //   emit(s"val EW          =   0; // Frame's empty width")

@@ -3,7 +3,7 @@ package spatial.codegen.simgen
 import spatial.SpatialExp
 import spatial.api.HostTransferExp
 
-trait SimGenHostTransfer extends SimCodegen  {
+trait SimGenHostTransfer extends SimCodegen {
   val IR: SpatialExp
   import IR._
 

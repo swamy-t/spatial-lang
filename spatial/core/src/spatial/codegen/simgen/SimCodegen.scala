@@ -9,10 +9,10 @@ import spatial.SpatialConfig
 trait SimCodegen extends Codegen with FileDependencies {
 
   import IR._
-  override val name = "Sim Codegen"
+  override val name         = "Sim Codegen"
   override val lang: String = "sim"
-  override val ext: String = "scala"
-  var hw = false
+  override val ext: String  = "scala"
+  var hw                    = false
 
   //RUBEN TODO: We dont support wildcard yet
   dependencies ::= DirDep("simgen", "")
@@ -29,10 +29,11 @@ trait SimCodegen extends Codegen with FileDependencies {
   def delay(lhs: Sym[_], rhs: Op[_], func: String) = {
     val name = nameOf(lhs).getOrElse(quote(lhs))
     if (hw) {
-      emit(src"""val ${lhs}_reg = Delay("$name", ${latencyOf(rhs)}, () => $func, log = ${nameOf(lhs).isDefined})""")
+      emit(
+        src"""val ${lhs}_reg = Delay("$name", ${latencyOf(rhs)}, () => $func, log = ${nameOf(
+          lhs).isDefined})""")
       emit(src"val $lhs = ${lhs}_reg.value")
-    }
-    else {
+    } else {
       emit(src"val $lhs = $func // $name")
     }
   }

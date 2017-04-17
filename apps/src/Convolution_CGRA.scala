@@ -4,19 +4,19 @@ import org.virtualized._
 object Convolution_CGRA extends SpatialApp {
   import IR._
 
-  val Kh = 3
-  val Kw = 3
+  val Kh   = 3
+  val Kw   = 3
   val Cmax = 100
 
   @virtualize
-  def convolve[T:Type:Num](image: Matrix[T]): Matrix[T] = {
+  def convolve[T: Type: Num](image: Matrix[T]): Matrix[T] = {
     val B = 16 (1 -> 1 -> 16)
 
     val R = ArgIn[Int]
     val C = ArgIn[Int]
     setArg(R, image.rows)
     setArg(C, image.cols)
-    val img = DRAM[T](R, C)
+    val img    = DRAM[T](R, C)
     val imgOut = DRAM[T](R, C)
 
     setMem(img, image)
@@ -27,15 +27,15 @@ object Convolution_CGRA extends SpatialApp {
 
       // TODO: Better syntax for initialization of lookup tables
       Pipe {
-        kh(0,0) = 1.to[T]
-        kh(1,0) = 2.to[T]
-        kh(2,0) = 1.to[T]
-        kh(0,1) = 0.to[T]
-        kh(1,1) = 0.to[T]
-        kh(2,1) = 0.to[T]
-        kh(0,2) = -1.to[T]
-        kh(1,2) = -2.to[T]
-        kh(2,2) = -1.to[T]
+        kh(0, 0) = 1.to[T]
+        kh(1, 0) = 2.to[T]
+        kh(2, 0) = 1.to[T]
+        kh(0, 1) = 0.to[T]
+        kh(1, 1) = 0.to[T]
+        kh(2, 1) = 0.to[T]
+        kh(0, 2) = -1.to[T]
+        kh(1, 2) = -2.to[T]
+        kh(2, 2) = -1.to[T]
       }
 
       val lineOut = SRAM[T](Cmax)
@@ -43,8 +43,7 @@ object Convolution_CGRA extends SpatialApp {
       val sr = RegFile[T](B + Kw - 1)
 
       Foreach(0 until R) { r =>
-
-        lb load img(r, 0::C)
+        lb load img(r, 0 :: C)
 
         /*println("Row " + r)
         Foreach(0 until Kh) { i =>
@@ -69,12 +68,12 @@ object Convolution_CGRA extends SpatialApp {
           }
 
           // TODO: This looks like a random write to SRAM with the current affine analysis...
-          Foreach(B by 1){i =>
+          Foreach(B by 1) { i =>
             lineOut(c + i) = out(i)
           }
         }
 
-        imgOut(r, 0::C) store lineOut
+        imgOut(r, 0 :: C) store lineOut
       }
     }
 
@@ -85,11 +84,15 @@ object Convolution_CGRA extends SpatialApp {
   def main() {
     val R = 15
     val C = 15
-    val image = (0::R, 0::C){(i,j) => if (j > 3 && i > 3 && j < 11 && i < 11) 256 else 0 }
+    val image = (0 :: R, 0 :: C) { (i, j) =>
+      if (j > 3 && i > 3 && j < 11 && i < 11) 256 else 0
+    }
 
     val output = convolve(image)
 
-    val gold = (0::R, 0::C){(i,j) => if (j == 7) 1 else 0 }
+    val gold = (0 :: R, 0 :: C) { (i, j) =>
+      if (j == 7) 1 else 0
+    }
 
     printMatrix(image, "Image")
     printMatrix(output, "Output")

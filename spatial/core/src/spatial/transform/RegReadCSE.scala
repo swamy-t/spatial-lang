@@ -15,34 +15,51 @@ trait RegReadCSE extends ForwardTransformer {
     csedDuplicates += reg -> (dups ++ csedDuplicates.getOrElse(reg, Set.empty))
   }
 
-  override protected def postprocess[T:Type](block: Block[T]) = {
+  override protected def postprocess[T: Type](block: Block[T]) = {
     // Remove CSE'd register duplicates from the metadata
-    for ((k,v) <- subst) {
+    for ((k, v) <- subst) {
       dbg(c"$k -> $v")
     }
 
-    for ((reg,csed) <- csedDuplicates) {
+    for ((reg, csed) <- csedDuplicates) {
       val orig = duplicatesOf(reg)
-      val duplicates = orig.zipWithIndex.filter{case (dup,i) => !csed.contains(i) }
+      val duplicates = orig.zipWithIndex.filter {
+        case (dup, i) => !csed.contains(i)
+      }
       duplicatesOf(reg) = duplicates.map(_._1)
 
       val mapping = duplicates.map(_._2).zipWithIndex.toMap
 
-      val writers = writersOf(reg).map{case (n,c) => (f(n), (f(c._1),c._2)) }.distinct
-      val readers = readersOf(reg).map{case (n,c) => (f(n), (f(c._1),c._2)) }.distinct
+      val writers = writersOf(reg).map {
+        case (n, c) => (f(n), (f(c._1), c._2))
+      }.distinct
+      val readers = readersOf(reg).map {
+        case (n, c) => (f(n), (f(c._1), c._2))
+      }.distinct
       val accesses = writers ++ readers
 
       dbg("")
       dbg(u"$reg")
-      accesses.foreach{access =>
-        dispatchOf.get(access, reg).foreach{orig =>
-          dispatchOf(access, reg) = orig.flatMap{o => mapping.get(o) }
+      accesses.foreach { access =>
+        dispatchOf.get(access, reg).foreach { orig =>
+          dispatchOf(access, reg) = orig.flatMap { o =>
+            mapping.get(o)
+          }
         }
-        portsOf.get(access,reg).foreach{orig =>
-          portsOf(access, reg) = orig.flatMap{case (i,ps) => mapping.get(i).map{i2 => i2 -> ps} }
+        portsOf.get(access, reg).foreach { orig =>
+          portsOf(access, reg) = orig.flatMap {
+            case (i, ps) =>
+              mapping.get(i).map { i2 =>
+                i2 -> ps
+              }
+          }
         }
 
-        dbg(u"${str(access.node)}: " + dispatchOf.get(access, reg).map(_.toString).getOrElse(""))
+        dbg(
+          u"${str(access.node)}: " + dispatchOf
+            .get(access, reg)
+            .map(_.toString)
+            .getOrElse(""))
       }
     }
 
@@ -60,23 +77,28 @@ trait RegReadCSE extends ForwardTransformer {
 
   // TODO: This creates unused register duplicates in metadata if the inner loop in question was previously unrolled
   // How to handle this?
-  override def transform[T:Type](lhs: Sym[T], rhs: Op[T])(implicit ctx: SrcCtx) = rhs match {
-    case e@RegRead(reg) if inInnerCtrl =>
+  override def transform[T: Type](lhs: Sym[T], rhs: Op[T])(
+      implicit ctx: SrcCtx) = rhs match {
+    case e @ RegRead(reg) if inInnerCtrl =>
       dbg(c"Found reg read $lhs = $rhs")
-      val rhs2 = RegRead(f(reg))(typ[T],mbits(e.bT)) // Note that this hasn't been staged yet, only created the node
+      val rhs2    = RegRead(f(reg))(typ[T], mbits(e.bT)) // Note that this hasn't been staged yet, only created the node
       val effects = effectsOf(lhs).mirror(f)
-      val deps = depsOf(lhs).map(f(_))
+      val deps    = depsOf(lhs).map(f(_))
 
       dbg(c"  rhs2 = $rhs2")
       dbg(c"  effects = $effects")
       dbg(c"  deps = $deps")
 
       val symsWithSameDef = defCache.getOrElse(rhs2, Nil) intersect context
-      val symsWithSameEffects = symsWithSameDef.find{case Effectful(u2, es) => u2 == effects && es == deps }
+      val symsWithSameEffects = symsWithSameDef.find {
+        case Effectful(u2, es) => u2 == effects && es == deps
+      }
 
-      dbg(c"  def cache: ${defCache.getOrElse(rhs2,Nil)}")
+      dbg(c"  def cache: ${defCache.getOrElse(rhs2, Nil)}")
       dbg(c"  context:")
-      context.foreach{s => dbg(c"    ${str(s)} [effects = ${effectsOf(s)}, deps = ${depsOf(s)}]")}
+      context.foreach { s =>
+        dbg(c"    ${str(s)} [effects = ${effectsOf(s)}, deps = ${depsOf(s)}]")
+      }
       dbg(c"  syms with same def: $symsWithSameDef")
       dbg(c"  syms with same effects: $symsWithSameEffects")
 
@@ -84,19 +106,22 @@ trait RegReadCSE extends ForwardTransformer {
         case Some(lhs2) =>
           lhs2.addCtx(ctx)
           // Dispatch doesn't necessarily need to be defined yet
-          dispatchOf.get(lhs,reg) match {
-            case Some(dups) => removeDuplicates(f(reg), dups diff dispatchOf(lhs2, f(reg)))
+          dispatchOf.get(lhs, reg) match {
+            case Some(dups) =>
+              removeDuplicates(f(reg), dups diff dispatchOf(lhs2, f(reg)))
             case None => // No action
           }
           lhs2.asInstanceOf[Exp[T]]
 
         case None =>
-          val lhs2 = mirror(lhs,rhs)
-          getDef(lhs2).foreach{d => defCache += d -> syms(lhs2).toList }
+          val lhs2 = mirror(lhs, rhs)
+          getDef(lhs2).foreach { d =>
+            defCache += d -> syms(lhs2).toList
+          }
           lhs2
       }
 
-    case _ if isInnerControl(lhs) => inInner{ super.transform(lhs,rhs) }
-    case _ => super.transform(lhs,rhs)
+    case _ if isInnerControl(lhs) => inInner { super.transform(lhs, rhs) }
+    case _                        => super.transform(lhs, rhs)
   }
 }

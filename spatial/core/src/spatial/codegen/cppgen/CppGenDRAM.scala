@@ -4,7 +4,6 @@ import spatial.SpatialConfig
 import spatial.SpatialExp
 import scala.collection.mutable.HashMap
 
-
 trait CppGenDRAM extends CppGenSRAM {
   val IR: SpatialExp
   import IR._
@@ -14,7 +13,8 @@ trait CppGenDRAM extends CppGenSRAM {
       s match {
         case lhs: Sym[_] =>
           lhs match {
-            case Def(e: DRAMNew[_,_])=> s"""x${lhs.id}_${nameOf(lhs).getOrElse("dram")}"""
+            case Def(e: DRAMNew[_, _]) =>
+              s"""x${lhs.id}_${nameOf(lhs).getOrElse("dram")}"""
             case _ =>
               super.quote(s)
           }
@@ -24,7 +24,7 @@ trait CppGenDRAM extends CppGenSRAM {
     } else {
       super.quote(s)
     }
-  } 
+  }
 
   override protected def remap(tp: Type[_]): String = tp match {
     // case tp: DRAMType[_] => src"DRAM"
@@ -32,12 +32,17 @@ trait CppGenDRAM extends CppGenSRAM {
   }
 
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case op@DRAMNew(dims) => 
-      emit(src"""uint64_t ${lhs} = c1->malloc(sizeof(int32_t) * ${dims.map(quote).mkString("*")});""")
-      emit(src"c1->setArg(${argMapping(lhs)._1}, $lhs); // (memstream in: ${argMapping(lhs)._2}, out: ${{argMapping(lhs)._3}})")
-      emit(src"""printf("Allocate mem of size ${dims.map(quote).mkString("*")} at %p\n", (void*)${lhs});""")
-      // emit(src"""uint64_t ${lhs} = (uint64_t) ${lhs}_void;""")
-
+    case op @ DRAMNew(dims) =>
+      emit(src"""uint64_t ${lhs} = c1->malloc(sizeof(int32_t) * ${dims
+        .map(quote)
+        .mkString("*")});""")
+      emit(
+        src"c1->setArg(${argMapping(lhs)._1}, $lhs); // (memstream in: ${argMapping(
+          lhs)._2}, out: ${{ argMapping(lhs)._3 }})")
+      emit(src"""printf("Allocate mem of size ${dims
+        .map(quote)
+        .mkString("*")} at %p\n", (void*)${lhs});""")
+    // emit(src"""uint64_t ${lhs} = (uint64_t) ${lhs}_void;""")
 
     // case Gather(dram, local, addrs, ctr, i)  => emit("// Do what?")
     // case Scatter(dram, local, addrs, ctr, i) => emit("// Do what?")
@@ -49,6 +54,5 @@ trait CppGenDRAM extends CppGenSRAM {
   override protected def emitFileFooter() {
     super.emitFileFooter()
   }
-
 
 }

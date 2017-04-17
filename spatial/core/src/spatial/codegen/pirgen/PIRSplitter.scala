@@ -5,12 +5,11 @@ import spatial.SpatialConfig
 
 import scala.collection.mutable
 
-
 trait PIRSplitter extends PIRSplitting with PIRRetiming {
   val IR: SpatialExp with PIRCommonExp
   import IR._
 
-  override val name = "PIR Splitting"
+  override val name    = "PIR Splitting"
   override val recurse = Always
 
   val mappingIn  = mutable.HashMap[Symbol, CU]()
@@ -18,26 +17,28 @@ trait PIRSplitter extends PIRSplitting with PIRRetiming {
 
   //TODO read this from some config file?
   lazy val ComputeMax = SplitCost(
-    sIn=SpatialConfig.sIn,
-    vIn=SpatialConfig.vIn,
-    vOut=SpatialConfig.vOut,
-    vLoc=1,
-    comp=SpatialConfig.comp,
-    write=SpatialConfig.readWrite,
-    read=SpatialConfig.readWrite,
-    mems=SpatialConfig.mems
+    sIn = SpatialConfig.sIn,
+    vIn = SpatialConfig.vIn,
+    vOut = SpatialConfig.vOut,
+    vLoc = 1,
+    comp = SpatialConfig.comp,
+    write = SpatialConfig.readWrite,
+    read = SpatialConfig.readWrite,
+    mems = SpatialConfig.mems
   )
   STAGES = 10
   SCALARS_PER_BUS = SpatialConfig.sbus
 
-  override def process[S:Type](b: Block[S]) = {
+  override def process[S: Type](b: Block[S]) = {
     super.run(b)
     try {
-      val cuMapping = mappingIn.keys.map{k => mappingIn(k).asInstanceOf[ACU] -> mappingOut(k).head.asInstanceOf[ACU] }.toMap
+      val cuMapping = mappingIn.keys.map { k =>
+        mappingIn(k).asInstanceOf[ACU] -> mappingOut(k).head.asInstanceOf[ACU]
+      }.toMap
       swapCUs(mappingOut.values.flatten, cuMapping)
-    }
-    catch {case e: SplitException =>
-      sys.exit(-1)
+    } catch {
+      case e: SplitException =>
+        sys.exit(-1)
     }
     b
   }
@@ -55,17 +56,17 @@ trait PIRSplitter extends PIRSplitting with PIRRetiming {
       val cus = splitCU(cu, ComputeMax, others)
       retime(cus, others)
 
-      cus.foreach{cu =>
+      cus.foreach { cu =>
         val cost = getStats(cu, others)
         if (cost.mems > ComputeMax.mems)
-          throw new Exception(s"${cu.srams} > ${ComputeMax.mems}, exceeded maximum SRAMs after retiming")
+          throw new Exception(
+            s"${cu.srams} > ${ComputeMax.mems}, exceeded maximum SRAMs after retiming")
 
         others += cu
       }
 
       cus
-    }
-    else List(cu)
+    } else List(cu)
   }
 
 }

@@ -16,25 +16,25 @@ trait StreamAnalyzer extends CompilerPass {
 
   override protected def process[S: Type](block: Block[S]) = {
     // Set metadata for tileloads
-    streamLoadCtrls.foreach{ ctrl =>  // So hacky, please fix
+    streamLoadCtrls.foreach { ctrl => // So hacky, please fix
       dbg(u"Trying to match ctrl $ctrl to a ParFifo or ParSRAM write")
       val a = parentOf(ctrl).get
       val b = childrenOf(a)
       if (b.length > 0) {
         val c = childrenOf(b.last)
         if (c.length > 0) {
-          val d = c.last
-          val specificCtrl = d
+          val d                             = c.last
+          val specificCtrl                  = d
           var connectLoad: Option[Exp[Any]] = None
-          streamParEnqs.foreach { pe => 
+          streamParEnqs.foreach { pe =>
             dbg(u"  Attempting to match $pe (parent ${parentOf(pe).get} to $d")
             pe match {
-              case Def(ParFIFOEnq(fifo, data, ens)) => 
+              case Def(ParFIFOEnq(fifo, data, ens)) =>
                 if (s"${parentOf(pe).get}" == s"$d") {
                   loadCtrlOf(fifo) = List(specificCtrl)
                   dbg(u"  It's a match! $fifo to $specificCtrl")
                 }
-              case Def(ParSRAMStore(sram,inds,data,ens)) => 
+              case Def(ParSRAMStore(sram, inds, data, ens)) =>
                 if (s"${parentOf(pe).get}" == s"$d") {
                   loadCtrlOf(sram) = List(specificCtrl)
                   dbg(u"  It's a match! $sram to $specificCtrl")
@@ -46,61 +46,58 @@ trait StreamAnalyzer extends CompilerPass {
       }
     }
 
-    streamPipes.foreach{pipe =>
+    streamPipes.foreach { pipe =>
       val childs = childrenOf(pipe) :+ pipe
       dbg(u"Stream pipe $pipe with immediate children $childs")
 
       // Link up enables (when data ready on fifo inputs)
-      streamEnablers.foreach{ deq => // Once fifo ens 
+      streamEnablers.foreach { deq => // Once fifo ens
         val fifo = deq match {
-            case Def(FIFODeq(stream,en)) => stream
-            case Def(ParFIFODeq(stream,en)) => stream
-            case Def(StreamRead(stream,en)) => stream
-            case Def(ParStreamRead(stream,en)) => stream
-            case Def(DecoderTemplateNew(popFrom, _)) => popFrom
-            case Def(DMATemplateNew(popFrom, _)) => popFrom
-        } 
+          case Def(FIFODeq(stream, en))            => stream
+          case Def(ParFIFODeq(stream, en))         => stream
+          case Def(StreamRead(stream, en))         => stream
+          case Def(ParStreamRead(stream, en))      => stream
+          case Def(DecoderTemplateNew(popFrom, _)) => popFrom
+          case Def(DMATemplateNew(popFrom, _))     => popFrom
+        }
         dbg(c"  # Trying to fit dequeuer $deq from fifo $fifo")
         var nextLevel: Option[Exp[_]] = parentOf(deq)
         while (nextLevel.isDefined) {
-            dbg(c"    # Checking if ${nextLevel.get} is a stream child")
-            if (childs.contains(nextLevel.get)) {
-                dbg(c"    # MATCH on ${nextLevel.get}")
-                listensTo(parentOf(deq).get) = fifo +: listensTo(parentOf(deq).get)
-                nextLevel = None
-            } else {
-                nextLevel = parentOf(nextLevel.get)
-            }
+          dbg(c"    # Checking if ${nextLevel.get} is a stream child")
+          if (childs.contains(nextLevel.get)) {
+            dbg(c"    # MATCH on ${nextLevel.get}")
+            listensTo(parentOf(deq).get) = fifo +: listensTo(parentOf(deq).get)
+            nextLevel = None
+          } else {
+            nextLevel = parentOf(nextLevel.get)
+          }
         }
       }
 
       // Link up holds (when fifo outputs are full)
-      streamHolders.foreach{ enq => // Once fifo ens 
+      streamHolders.foreach { enq => // Once fifo ens
         val fifo = enq match {
-            case Def(FIFOEnq(stream,en,_)) => stream
-            case Def(ParFIFOEnq(stream,en,_)) => stream
-            case Def(StreamWrite(stream,en,_)) => stream
-            case Def(ParStreamWrite(stream,en,_)) => stream
-            case Def(DecoderTemplateNew(_, pushTo)) => pushTo
-        } 
+          case Def(FIFOEnq(stream, en, _))        => stream
+          case Def(ParFIFOEnq(stream, en, _))     => stream
+          case Def(StreamWrite(stream, en, _))    => stream
+          case Def(ParStreamWrite(stream, en, _)) => stream
+          case Def(DecoderTemplateNew(_, pushTo)) => pushTo
+        }
         dbg(c"  # Trying to fit enqueuer $enq from fifo $fifo")
         var nextLevel: Option[Exp[_]] = parentOf(enq)
         while (nextLevel.isDefined) {
-            dbg(c"    # Checking if ${nextLevel.get} is a stream child")
-            if (childs.contains(nextLevel.get)) {
-                dbg(c"    # MATCH on ${nextLevel.get}")
-                pushesTo(parentOf(enq).get) = fifo +: pushesTo(parentOf(enq).get)
-                nextLevel = None
-            } else {
-                nextLevel = parentOf(nextLevel.get)
-            }
+          dbg(c"    # Checking if ${nextLevel.get} is a stream child")
+          if (childs.contains(nextLevel.get)) {
+            dbg(c"    # MATCH on ${nextLevel.get}")
+            pushesTo(parentOf(enq).get) = fifo +: pushesTo(parentOf(enq).get)
+            nextLevel = None
+          } else {
+            nextLevel = parentOf(nextLevel.get)
+          }
         }
       }
 
-
     }
-    
-
 
     block
   }

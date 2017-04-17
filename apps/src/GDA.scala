@@ -6,22 +6,25 @@ object GDA extends SpatialApp { // Regression (Dense) // Args: 64
 
   type X = Int
 
-  val margin = 1
-  val innerPar = 1
+  val margin        = 1
+  val innerPar      = 1
   lazy val outerPar = 1
-  val MAXC = 64
-  val C = MAXC
-  val tileSize = 16
-  val pLoopPar = 2
+  val MAXC          = 64
+  val C             = MAXC
+  val tileSize      = 16
+  val pLoopPar      = 2
 
   @virtualize
-  def gda[T: Type : Num](xCPU: Array[T], yCPU: Array[Int], mu0CPU: Array[T], mu1CPU: Array[T]) = {
-    val rTileSize = tileSize(96 -> 19200)
-    val op = outerPar(1 -> 8)
-    val ip = innerPar(1 -> 12)
-    val subLoopPar = innerPar(1 -> 16)
-    val prodLoopPar = innerPar(1 -> 96)
-    val outerAccumPar = innerPar(1 -> 1)
+  def gda[T: Type: Num](xCPU: Array[T],
+                        yCPU: Array[Int],
+                        mu0CPU: Array[T],
+                        mu1CPU: Array[T]) = {
+    val rTileSize     = tileSize(96 -> 19200)
+    val op            = outerPar(1  -> 8)
+    val ip            = innerPar(1  -> 12)
+    val subLoopPar    = innerPar(1  -> 16)
+    val prodLoopPar   = innerPar(1  -> 96)
+    val outerAccumPar = innerPar(1  -> 1)
 
     val rows = yCPU.length;
     bound(rows) = 360000
@@ -33,10 +36,10 @@ object GDA extends SpatialApp { // Regression (Dense) // Args: 64
     // setArg(C, cols)
     setArg(R, rows)
 
-    val x = DRAM[T](R, C)
-    val y = DRAM[Int](R)
-    val mu0 = DRAM[T](C)
-    val mu1 = DRAM[T](C)
+    val x     = DRAM[T](R, C)
+    val y     = DRAM[Int](R)
+    val mu0   = DRAM[T](C)
+    val mu1   = DRAM[T](C)
     val sigma = DRAM[T](C, C)
 
     setMem(x, xCPU)
@@ -54,10 +57,10 @@ object GDA extends SpatialApp { // Regression (Dense) // Args: 64
 
       val sigmaOut = SRAM[T](MAXC, MAXC)
 
-      MemReduce(sigmaOut)(R by rTileSize par op){ r =>
+      MemReduce(sigmaOut)(R by rTileSize par op) { r =>
         val gdaYtile = SRAM[Int](rTileSize)
         val gdaXtile = SRAM[T](rTileSize, MAXC)
-        val blk = Reg[Int]
+        val blk      = Reg[Int]
         Parallel {
           gdaYtile load y(r :: r + rTileSize par 16)
           gdaXtile load x(r :: r + rTileSize, 0 :: C par 16) // Load tile of x
@@ -69,17 +72,19 @@ object GDA extends SpatialApp { // Regression (Dense) // Args: 64
         val sigmaBlk = SRAM[T](MAXC, MAXC)
 
         MemReduce(sigmaBlk)(blk par param(1)) { rr =>
-          val subTile = SRAM[T](MAXC)
+          val subTile   = SRAM[T](MAXC)
           val sigmaTile = SRAM[T](MAXC, MAXC)
           Foreach(C par subLoopPar) { cc =>
-            subTile(cc) = gdaXtile(rr, cc) - mux(gdaYtile(rr) == 1, mu1Tile(cc), mu0Tile(cc))
+            subTile(cc) = gdaXtile(rr, cc) - mux(gdaYtile(rr) == 1,
+                                                 mu1Tile(cc),
+                                                 mu0Tile(cc))
           }
           Foreach(C by 1, C par ip) { (ii, jj) =>
             sigmaTile(ii, jj) = subTile(ii) * subTile(jj)
           }
           sigmaTile
-        }{_+_}
-      }{_+_}
+        } { _ + _ }
+      } { _ + _ }
 
       sigma(0 :: C, 0 :: C par 16) store sigmaOut
     }
@@ -87,10 +92,11 @@ object GDA extends SpatialApp { // Regression (Dense) // Args: 64
     getMem(sigma)
   }
 
-
   def printArr(a: Array[Int], str: String = "") {
     println(str)
-    (0 until a.length) foreach { i => print(a(i) + " ") }
+    (0 until a.length) foreach { i =>
+      print(a(i) + " ")
+    }
     println("")
   }
 
@@ -104,23 +110,46 @@ object GDA extends SpatialApp { // Regression (Dense) // Args: 64
     // val mu0 = Array.fill(C){ random[X](10) }
     // val mu1 = Array.fill(C){ random[X](10) }
 
-    val x = Array.tabulate(R) { i => Array.tabulate(C) { j => (i * C + j) % 256 } }
-    val ys = Array.tabulate(R) { i => i % 256 }
-    val mu0 = Array.tabulate(C) { i => i % 2 }
-    val mu1 = Array.tabulate(C) { i => i % 2 }
+    val x = Array.tabulate(R) { i =>
+      Array.tabulate(C) { j =>
+        (i * C + j) % 256
+      }
+    }
+    val ys = Array.tabulate(R) { i =>
+      i % 256
+    }
+    val mu0 = Array.tabulate(C) { i =>
+      i % 2
+    }
+    val mu1 = Array.tabulate(C) { i =>
+      i % 2
+    }
 
     val result = gda(x.flatten, ys, mu0, mu1)
 
-    val gold = x.zip(ys) { (row, y) =>
-      val sub = if (y == 1) row.zip(mu1){_-_} else row.zip(mu0) {_-_}
-      Array.tabulate(C) { i => Array.tabulate(C) { j => sub(i) * sub(j) } }.flatten
-    }.reduce { (a, b) => a.zip(b) {_+_} }
+    val gold = x
+      .zip(ys) { (row, y) =>
+        val sub =
+          if (y == 1) row.zip(mu1) { _ - _ } else row.zip(mu0) { _ - _ }
+        Array
+          .tabulate(C) { i =>
+            Array.tabulate(C) { j =>
+              sub(i) * sub(j)
+            }
+          }
+          .flatten
+      }
+      .reduce { (a, b) =>
+        a.zip(b) { _ + _ }
+      }
 
     printArr(gold, "gold: ")
     printArr(result, "result: ")
 
-    val cksum = gold.zip(result){ case (a,b) => a < b + margin && a > b - margin }.reduce{_&&_}
-    println("PASS: " + cksum  + " (GDA)")
+    val cksum = gold
+      .zip(result) { case (a, b) => a < b + margin && a > b - margin }
+      .reduce { _ && _ }
+    println("PASS: " + cksum + " (GDA)")
 
     // // println("actual: " + gold.mkString(", "))
     // //println("result: " + result.mkString(", "))

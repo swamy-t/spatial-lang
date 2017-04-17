@@ -1,7 +1,7 @@
 import spatial._
 import org.virtualized._
 
-object InOutArg extends SpatialApp {  // Regression (Unit) // Args: 5
+object InOutArg extends SpatialApp { // Regression (Unit) // Args: 5
   import IR._
 
   @virtualize
@@ -18,7 +18,6 @@ object InOutArg extends SpatialApp {  // Regression (Unit) // Args: 5
     Accel {
       Pipe { y := x + 4 }
     }
-
 
     // Extract results from accelerator
     val result = getArg(y)
@@ -50,38 +49,37 @@ object SimpleHostIO extends SpatialApp {
   }
 }
 
-
 // Args: None
 object MultiplexedWriteTest extends SpatialApp { // Regression (Unit) // Args: none
   import IR._
 
   val tileSize = 16
-  val I = 5
-  val N = 192
+  val I        = 5
+  val N        = 192
 
-  def multiplexedwrtest[W:Type:Num](w: Array[W], i: Array[W]): Array[W] = {
-    val T = param(tileSize)
-    val P = param(4)
-    val weights = DRAM[W](N)
-    val inputs  = DRAM[W](N)
-    val weightsResult = DRAM[W](N*I)
+  def multiplexedwrtest[W: Type: Num](w: Array[W], i: Array[W]): Array[W] = {
+    val T             = param(tileSize)
+    val P             = param(4)
+    val weights       = DRAM[W](N)
+    val inputs        = DRAM[W](N)
+    val weightsResult = DRAM[W](N * I)
     setMem(weights, w)
-    setMem(inputs,i)
+    setMem(inputs, i)
     Accel {
       val wt = SRAM[W](T)
       val in = SRAM[W](T)
-      Sequential.Foreach(N by T){i =>
-        wt load weights(i::i+T par 16)
-        in load inputs(i::i+T par 16)
+      Sequential.Foreach(N by T) { i =>
+        wt load weights(i :: i + T par 16)
+        in load inputs(i :: i + T par 16)
 
         // Some math nonsense (definitely not a correct implementation of anything)
-        Foreach(I by 1){x =>
+        Foreach(I by 1) { x =>
           val niter = Reg[Int]
-          niter := x+1
-          MemReduce(wt)(niter by 1){ i =>  // s0 write
+          niter := x + 1
+          MemReduce(wt)(niter by 1) { i => // s0 write
             in
-          }{_+_}
-          weightsResult(i*I+x*T::i*I+x*T+T par 16) store wt //s1 read
+          } { _ + _ }
+          weightsResult(i * I + x * T :: i * I + x * T + T par 16) store wt //s1 read
         }
       }
 
@@ -91,23 +89,35 @@ object MultiplexedWriteTest extends SpatialApp { // Regression (Unit) // Args: n
 
   @virtualize
   def main() = {
-    val w = Array.tabulate(N){ i => i % 256}
-    val i = Array.tabulate(N){ i => i % 256 }
+    val w = Array.tabulate(N) { i =>
+      i % 256
+    }
+    val i = Array.tabulate(N) { i =>
+      i % 256
+    }
 
     val result = multiplexedwrtest(w, i)
 
-    val gold = Array.tabulate(N/tileSize) { k =>
-      Array.tabulate(I){ j => 
-        val in = Array.tabulate(tileSize) { i => (j)*(k*tileSize + i) }
-        val wt = Array.tabulate(tileSize) { i => k*tileSize + i }
-        in.zip(wt){_+_}
-      }.flatten
-    }.flatten
+    val gold = Array
+      .tabulate(N / tileSize) { k =>
+        Array
+          .tabulate(I) { j =>
+            val in = Array.tabulate(tileSize) { i =>
+              (j) * (k * tileSize + i)
+            }
+            val wt = Array.tabulate(tileSize) { i =>
+              k * tileSize + i
+            }
+            in.zip(wt) { _ + _ }
+          }
+          .flatten
+      }
+      .flatten
     printArray(gold, "gold: ");
     printArray(result, "result: ");
 
-    val cksum = gold.zip(result){_==_}.reduce{_&&_}
-    println("PASS: " + cksum  + " (MultiplexedWriteTest)")
+    val cksum = gold.zip(result) { _ == _ }.reduce { _ && _ }
+    println("PASS: " + cksum + " (MultiplexedWriteTest)")
   }
 }
 
@@ -118,41 +128,47 @@ object BubbledWriteTest extends SpatialApp { // Regression (Unit) // Args: none
   import IR._
 
   val tileSize = 16
-  val I = 5
-  val N = 192
+  val I        = 5
+  val N        = 192
 
   def bubbledwrtest(w: Array[Int], i: Array[Int]): Array[Int] = {
-    val T = param(tileSize)
-    val P = param(4)
-    val weights = DRAM[Int](N)
-    val inputs  = DRAM[Int](N)
-    val weightsResult = DRAM[Int](N*I)
+    val T             = param(tileSize)
+    val P             = param(4)
+    val weights       = DRAM[Int](N)
+    val inputs        = DRAM[Int](N)
+    val weightsResult = DRAM[Int](N * I)
     // val dummyWeightsResult = DRAM[Int](T)
     // val dummyOut = DRAM[Int](T)
     // val dummyOut2 = DRAM[Int](T)
     setMem(weights, w)
-    setMem(inputs,i)
+    setMem(inputs, i)
     Accel {
 
       val wt = SRAM[Int](T)
       val in = SRAM[Int](T)
-      Sequential.Foreach(N by T){i =>
-        wt load weights(i::i+T par 16)
-        in load inputs(i::i+T par 16)
+      Sequential.Foreach(N by T) { i =>
+        wt load weights(i :: i + T par 16)
+        in load inputs(i :: i + T par 16)
 
-        Foreach(I by 1){x =>
+        Foreach(I by 1) { x =>
           val niter = Reg[Int]
-          niter := x+1
-          MemReduce(wt)(niter by 1){ k =>  // s0 write
+          niter := x + 1
+          MemReduce(wt)(niter by 1) { k => // s0 write
             in
-          }{_+_}
+          } { _ + _ }
           val dummyReg1 = Reg[Int]
           val dummyReg2 = Reg[Int]
           val dummyReg3 = Reg[Int]
-          Foreach(T by 1) { i => dummyReg1 := in(i)} // s1 do not touch
-          Foreach(T by 1) { i => dummyReg2 := wt(i)} // s2 read
-          Foreach(T by 1) { i => dummyReg3 := in(i)} // s3 do not touch
-          weightsResult(i*I+x*T::i*I+x*T+T par 16) store wt //s4 read
+          Foreach(T by 1) { i =>
+            dummyReg1 := in(i)
+          } // s1 do not touch
+          Foreach(T by 1) { i =>
+            dummyReg2 := wt(i)
+          } // s2 read
+          Foreach(T by 1) { i =>
+            dummyReg3 := in(i)
+          } // s3 do not touch
+          weightsResult(i * I + x * T :: i * I + x * T + T par 16) store wt //s4 read
         }
       }
 
@@ -162,33 +178,44 @@ object BubbledWriteTest extends SpatialApp { // Regression (Unit) // Args: none
 
   @virtualize
   def main() = {
-    val w = Array.tabulate(N){ i => i % 256}
-    val i = Array.tabulate(N){ i => i % 256 }
+    val w = Array.tabulate(N) { i =>
+      i % 256
+    }
+    val i = Array.tabulate(N) { i =>
+      i % 256
+    }
 
     val result = bubbledwrtest(w, i)
 
     // // Non-resetting SRAM check
     // val gold = Array.tabulate(N/tileSize) { k =>
-    //   Array.tabulate(I){ j => 
-    //     Array.tabulate(tileSize) { i => 
+    //   Array.tabulate(I){ j =>
+    //     Array.tabulate(tileSize) { i =>
     //       ( 1 + (j+1)*(j+2)/2 ) * (i + k*tileSize)
     //     }
     //   }.flatten
     // }.flatten
     // Resetting SRAM check
-    val gold = Array.tabulate(N/tileSize) { k =>
-      Array.tabulate(I){ j => 
-        val in = Array.tabulate(tileSize) { i => (j)*(k*tileSize + i) }
-        val wt = Array.tabulate(tileSize) { i => k*tileSize + i }
-        in.zip(wt){_+_}
-      }.flatten
-    }.flatten
+    val gold = Array
+      .tabulate(N / tileSize) { k =>
+        Array
+          .tabulate(I) { j =>
+            val in = Array.tabulate(tileSize) { i =>
+              (j) * (k * tileSize + i)
+            }
+            val wt = Array.tabulate(tileSize) { i =>
+              k * tileSize + i
+            }
+            in.zip(wt) { _ + _ }
+          }
+          .flatten
+      }
+      .flatten
     printArray(gold, "gold: ")
     printArray(result, "result: ")
 
-    val cksum = gold.zip(result){_==_}.reduce{_&&_}
-    println("PASS: " + cksum  + " (BubbledWriteTest)")
-
+    val cksum = gold.zip(result) { _ == _ }.reduce { _ && _ }
+    println("PASS: " + cksum + " (BubbledWriteTest)")
 
   }
 }
@@ -208,13 +235,12 @@ object FileSplitter extends SpatialApp { // Regression (Unit) // Args: 5
 
     // Create HW accelerator
     Accel {
-      Pipe(5 by 1) { i => 
-        Pipe(10 by 1) { j => 
-          Pipe {y := x + 4 + j + i}
+      Pipe(5 by 1) { i =>
+        Pipe(10 by 1) { j =>
+          Pipe { y := x + 4 + j + i }
         }
       }
     }
-
 
     // Extract results from accelerator
     val result = getArg(y)
@@ -229,28 +255,28 @@ object FileSplitter extends SpatialApp { // Regression (Unit) // Args: 5
   }
 }
 
-object Niter extends SpatialApp {  // Regression (Unit) // Args: 100
+object Niter extends SpatialApp { // Regression (Unit) // Args: 100
   import IR._
-  
+
   val constTileSize = 16
 
-  def nIterTest[T:Type:Num](len: Int): T = {
-    val innerPar = 1 (1 -> 1)
-    val tileSize = constTileSize (constTileSize -> constTileSize)
+  def nIterTest[T: Type: Num](len: Int): T = {
+    val innerPar = 1 (1                        -> 1)
+    val tileSize = constTileSize(constTileSize -> constTileSize)
     bound(len) = 9216
 
-    val N = ArgIn[Int]
+    val N   = ArgIn[Int]
     val out = ArgOut[T]
     setArg(N, len)
 
     Accel {
       Sequential {
-        Sequential.Foreach(N by tileSize){ i =>
+        Sequential.Foreach(N by tileSize) { i =>
           val redMax = Reg[Int](999)
-          Pipe{ redMax := min(tileSize, N.value-i) }
-          val accum = Reduce(Reg[T](0.to[T]))(redMax par innerPar){ ii =>
+          Pipe { redMax := min(tileSize, N.value - i) }
+          val accum = Reduce(Reg[T](0.to[T]))(redMax par innerPar) { ii =>
             (i + ii).to[T]
-          } {_+_}
+          } { _ + _ }
           Pipe { out := accum }
         }
       }
@@ -265,9 +291,9 @@ object Niter extends SpatialApp {  // Regression (Unit) // Args: 100
 
     val result = nIterTest[Int](len)
 
-    val m = (len-1)%constTileSize + 1
-    val b1 = m*(m-1)/2
-    val gold = b1 + (len - m)*m
+    val m    = (len - 1) % constTileSize + 1
+    val b1   = m * (m - 1) / 2
+    val gold = b1 + (len - m) * m
     println("expected: " + gold)
     println("result:   " + result)
 
@@ -299,12 +325,11 @@ object MemTest1D extends SpatialApp { // Regression (Unit) // Args: 7
       Pipe { y := mem(383) }
     }
 
-
     // Extract results from accelerator
     val result = getArg(y)
 
     // Create validation checks and debug code
-    val gold = N+383
+    val gold = N + 383
     println("expected: " + gold)
     println("result: " + result)
 
@@ -330,18 +355,17 @@ object MemTest2D extends SpatialApp { // Regression (Unit) // Args: 7
     // Create HW accelerator
     Accel {
       val mem = SRAM[Int](64, 128)
-      Sequential.Foreach(64 by 1, 128 by 1) { (i,j) =>
-        mem(i,j) = x + (i*128+j).to[Int]
+      Sequential.Foreach(64 by 1, 128 by 1) { (i, j) =>
+        mem(i, j) = x + (i * 128 + j).to[Int]
       }
-      Pipe { y := mem(63,127) }
+      Pipe { y := mem(63, 127) }
     }
-
 
     // Extract results from accelerator
     val result = getArg(y)
 
     // Create validation checks and debug code
-    val gold = N+63*128+127
+    val gold = N + 63 * 128 + 127
     println("expected: " + gold)
     println("result: " + result)
 
@@ -353,7 +377,7 @@ object MemTest2D extends SpatialApp { // Regression (Unit) // Args: 7
 object FifoLoad extends SpatialApp { // Regression (Unit) // Args: 192
   import IR._
 
-  def fifoLoad[T:Type:Num](srcHost: Array[T], N: Int) = {
+  def fifoLoad[T: Type: Num](srcHost: Array[T], N: Int) = {
     val tileSize = 16 (64 -> 64)
 
     val size = ArgIn[Int]
@@ -366,12 +390,12 @@ object FifoLoad extends SpatialApp { // Regression (Unit) // Args: 192
     Accel {
       val f1 = FIFO[T](tileSize)
       Sequential.Foreach(size by tileSize) { i =>
-        f1 load srcFPGA(i::i + tileSize par 16)
+        f1 load srcFPGA(i :: i + tileSize par 16)
         val b1 = SRAM[T](tileSize)
         Foreach(tileSize by 1) { i =>
           b1(i) = f1.deq()
         }
-        dstFPGA(i::i + tileSize par 16) store b1
+        dstFPGA(i :: i + tileSize par 16) store b1
       }
       ()
     }
@@ -382,20 +406,25 @@ object FifoLoad extends SpatialApp { // Regression (Unit) // Args: 192
   def main() {
     val arraySize = args(0).to[Int]
 
-    val src = Array.tabulate(arraySize){i => i % 256}
+    val src = Array.tabulate(arraySize) { i =>
+      i % 256
+    }
     val dst = fifoLoad(src, arraySize)
 
     val gold = src
 
     println("Sent in: ")
-    (0 until arraySize) foreach { i => print(gold(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(gold(i) + " ")
+    }
     println("\nGot out:")
-    (0 until arraySize) foreach { i => print(dst(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(dst(i) + " ")
+    }
     println("")
 
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (FifoLoad)")
-
 
   }
 }
@@ -404,17 +433,17 @@ object SimpleSequential extends SpatialApp { // Regression (Unit) // Args: 5 8
   import IR._
 
   def simpleSeq(xIn: Int, yIn: Int): Int = {
-    val innerPar = 1 (1 -> 1)
+    val innerPar = 1 (1   -> 1)
     val tileSize = 64 (64 -> 64)
 
-    val x = ArgIn[Int]
-    val y = ArgIn[Int]
+    val x   = ArgIn[Int]
+    val y   = ArgIn[Int]
     val out = ArgOut[Int]
     setArg(x, xIn)
     setArg(y, yIn)
     Accel {
       val bram = SRAM[Int](tileSize)
-      Foreach(tileSize by 1 par innerPar){ ii =>
+      Foreach(tileSize by 1 par innerPar) { ii =>
         bram(ii) = x.value * ii
       }
       out := bram(y.value)
@@ -424,11 +453,13 @@ object SimpleSequential extends SpatialApp { // Regression (Unit) // Args: 5 8
 
   @virtualize
   def main() {
-    val x = args(0).to[Int]
-    val y = args(1).to[Int]
+    val x      = args(0).to[Int]
+    val y      = args(1).to[Int]
     val result = simpleSeq(x, y)
 
-    val a1 = Array.tabulate(64){i => x * i}
+    val a1 = Array.tabulate(64) { i =>
+      x * i
+    }
     val gold = a1(y)
 
     println("expected: " + gold)
@@ -438,7 +469,6 @@ object SimpleSequential extends SpatialApp { // Regression (Unit) // Args: 5 8
     println("PASS: " + chkSum + " (SimpleSeq)")
   }
 }
-
 
 object DeviceMemcpy extends SpatialApp { // Regression (Unit) // Args: 50
   import IR._
@@ -458,16 +488,18 @@ object DeviceMemcpy extends SpatialApp { // Regression (Unit) // Args: 50
   @virtualize
   def main() {
     val arraySize = N
-    val c = args(0).to[Int]
+    val c         = args(0).to[Int]
 
-    val src = Array.tabulate(arraySize){i => i*c }
+    val src = Array.tabulate(arraySize) { i =>
+      i * c
+    }
     val dst = memcpyViaFPGA(src)
     println("Sent in: ")
-    for (i <- 0 until arraySize){ print(src(i) + " ") }
+    for (i <- 0 until arraySize) { print(src(i) + " ") }
     println("\nGot out: ")
-    for (i <- 0 until arraySize){ print(dst(i) + " ") }
+    for (i <- 0 until arraySize) { print(dst(i) + " ") }
     println("")
-    val chkSum = dst.zip(src){_ == _}.reduce{_&&_}
+    val chkSum = dst.zip(src) { _ == _ }.reduce { _ && _ }
     println("PASS: " + chkSum + " (DeviceMemcpy)")
   }
 }
@@ -477,9 +509,9 @@ object SimpleTileLoadStore extends SpatialApp { // Regression (Unit) // Args: 10
 
   val N = 192
 
-  def simpleLoadStore[T:Type:Num](srcHost: Array[T], value: T) = {
-    val loadPar  = 1 (1 -> 1)
-    val storePar = 1 (1 -> 1)
+  def simpleLoadStore[T: Type: Num](srcHost: Array[T], value: T) = {
+    val loadPar  = 1 (1   -> 1)
+    val storePar = 1 (1   -> 1)
     val tileSize = 16 (16 -> 16)
 
     val srcFPGA = DRAM[T](N)
@@ -492,14 +524,14 @@ object SimpleTileLoadStore extends SpatialApp { // Regression (Unit) // Args: 10
       Sequential.Foreach(N by tileSize par 2) { i =>
         val b1 = SRAM[T](tileSize)
 
-        b1 load srcFPGA(i::i+tileSize par 16)
+        b1 load srcFPGA(i :: i + tileSize par 16)
 
         val b2 = SRAM[T](tileSize)
         Foreach(tileSize by 1 par 4) { ii =>
           b2(ii) = b1(ii) * x
         }
 
-        dstFPGA(i::i+tileSize par 16) store b2
+        dstFPGA(i :: i + tileSize par 16) store b2
       }
     }
     getMem(dstFPGA)
@@ -508,31 +540,36 @@ object SimpleTileLoadStore extends SpatialApp { // Regression (Unit) // Args: 10
   @virtualize
   def main() {
     val arraySize = N
-    val value = args(0).to[Int]
+    val value     = args(0).to[Int]
 
-    val src = Array.tabulate[Int](arraySize) { i => i % 256 }
+    val src = Array.tabulate[Int](arraySize) { i =>
+      i % 256
+    }
     val dst = simpleLoadStore(src, value)
 
     val gold = src.map { _ * value }
 
     println("Sent in: ")
-    (0 until arraySize) foreach { i => print(gold(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(gold(i) + " ")
+    }
     println("Got out: ")
-    (0 until arraySize) foreach { i => print(dst(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(dst(i) + " ")
+    }
     println("")
 
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (SimpleTileLoadStore)")
   }
 }
 
-
 object SingleFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
   import IR._
-  
+
   val tileSize = 32
 
-  def singleFifoLoad[T:Type:Num](src1: Array[T], in: Int) = {
+  def singleFifoLoad[T: Type: Num](src1: Array[T], in: Int) = {
 
     val P1 = 4 (16 -> 16)
 
@@ -540,16 +577,16 @@ object SingleFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
     setArg(N, in)
 
     val src1FPGA = DRAM[T](N)
-    val out = ArgOut[T]
+    val out      = ArgOut[T]
     setMem(src1FPGA, src1)
 
     Accel {
       val f1 = FIFO[T](tileSize)
       Foreach(N by tileSize) { i =>
-        f1 load src1FPGA(i::i+tileSize par P1)
-        val accum = Reduce(Reg[T](0.to[T]))(tileSize by 1 par 4){i =>
+        f1 load src1FPGA(i :: i + tileSize par P1)
+        val accum = Reduce(Reg[T](0.to[T]))(tileSize by 1 par 4) { i =>
           f1.deq()
-        }{_+_}
+        } { _ + _ }
         Pipe { out := accum }
       }
       ()
@@ -561,13 +598,17 @@ object SingleFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
   def main() {
     val arraySize = args(0).to[Int]
 
-    val src1 = Array.tabulate(arraySize) { i => i % 256}
+    val src1 = Array.tabulate(arraySize) { i =>
+      i % 256
+    }
     val out = singleFifoLoad(src1, arraySize)
 
-    val sub1_for_check = Array.tabulate(arraySize-tileSize) {i => i % 256}
+    val sub1_for_check = Array.tabulate(arraySize - tileSize) { i =>
+      i % 256
+    }
 
     // val gold = src1.zip(src2){_*_}.zipWithIndex.filter( (a:Int, i:Int) => i > arraySize-64).reduce{_+_}
-    val gold = src1.reduce{_+_} - sub1_for_check.reduce(_+_)
+    val gold = src1.reduce { _ + _ } - sub1_for_check.reduce(_ + _)
     println("gold: " + gold)
     println("out: " + out)
 
@@ -580,7 +621,10 @@ object ParFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
   import IR._
 
   val tileSize = 64
-  def parFifoLoad[T:Type:Num](src1: Array[T], src2: Array[T], src3: Array[T], in: Int) = {
+  def parFifoLoad[T: Type: Num](src1: Array[T],
+                                src2: Array[T],
+                                src3: Array[T],
+                                in: Int) = {
 
     val P1 = 2 (16 -> 16)
 
@@ -590,7 +634,7 @@ object ParFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
     val src1FPGA = DRAM[T](N)
     val src2FPGA = DRAM[T](N)
     val src3FPGA = DRAM[T](N)
-    val out = ArgOut[T]
+    val out      = ArgOut[T]
     setMem(src1FPGA, src1)
     setMem(src2FPGA, src2)
     setMem(src3FPGA, src3)
@@ -601,13 +645,13 @@ object ParFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
       val f3 = FIFO[T](tileSize)
       Foreach(N by tileSize) { i =>
         Parallel {
-          f1 load src1FPGA(i::i+tileSize par P1)
-          f2 load src2FPGA(i::i+tileSize par P1)
-          f3 load src3FPGA(i::i+tileSize par P1)
+          f1 load src1FPGA(i :: i + tileSize par P1)
+          f2 load src2FPGA(i :: i + tileSize par P1)
+          f3 load src3FPGA(i :: i + tileSize par P1)
         }
-        val accum = Reduce(Reg[T](0.to[T]))(tileSize by 1){i =>
+        val accum = Reduce(Reg[T](0.to[T]))(tileSize by 1) { i =>
           f1.deq() * f2.deq() * f3.deq()
-        }{_+_}
+        } { _ + _ }
         Pipe { out := accum }
       }
       ()
@@ -619,17 +663,32 @@ object ParFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
   def main() {
     val arraySize = args(0).to[Int]
 
-    val src1 = Array.tabulate(arraySize) { i => i % 64 }
-    val src2 = Array.tabulate(arraySize) { i => i % 64 + 4096}
-    val src3 = Array.tabulate(arraySize) { i => i % 64 + 2*4096}
+    val src1 = Array.tabulate(arraySize) { i =>
+      i % 64
+    }
+    val src2 = Array.tabulate(arraySize) { i =>
+      i % 64 + 4096
+    }
+    val src3 = Array.tabulate(arraySize) { i =>
+      i % 64 + 2 * 4096
+    }
     val out = parFifoLoad(src1, src2, src3, arraySize)
 
-    val sub1_for_check = Array.tabulate(arraySize-tileSize) {i => i % 64}
-    val sub2_for_check = Array.tabulate(arraySize-tileSize) {i => i % 64 + 4096}
-    val sub3_for_check = Array.tabulate(arraySize-tileSize) {i => i % 64 + 2*4096}
+    val sub1_for_check = Array.tabulate(arraySize - tileSize) { i =>
+      i % 64
+    }
+    val sub2_for_check = Array.tabulate(arraySize - tileSize) { i =>
+      i % 64 + 4096
+    }
+    val sub3_for_check = Array.tabulate(arraySize - tileSize) { i =>
+      i % 64 + 2 * 4096
+    }
 
     // val gold = src1.zip(src2){_*_}.zipWithIndex.filter( (a:Int, i:Int) => i > arraySize-64).reduce{_+_}
-    val gold = src1.zip(src2){_*_}.zip(src3){_*_}.reduce{_+_} - sub1_for_check.zip(sub2_for_check){_*_}.zip(sub3_for_check){_*_}.reduce(_+_)
+    val gold = src1.zip(src2) { _ * _ }.zip(src3) { _ * _ }.reduce { _ + _ } - sub1_for_check
+      .zip(sub2_for_check) { _ * _ }
+      .zip(sub3_for_check) { _ * _ }
+      .reduce(_ + _)
     println("gold: " + gold)
     println("out: " + out)
 
@@ -638,14 +697,12 @@ object ParFifoLoad extends SpatialApp { // Regression (Unit) // Args: 384
   }
 }
 
-
-
 object FifoLoadStore extends SpatialApp { // Regression (Unit) // Args: none
   import IR._
 
   val N = 32
 
-  def fifoLoadStore[T:Type:Bits](srcHost: Array[T]) = {
+  def fifoLoadStore[T: Type: Bits](srcHost: Array[T]) = {
     val tileSize = N
 
     val srcFPGA = DRAM[T](N)
@@ -656,8 +713,8 @@ object FifoLoadStore extends SpatialApp { // Regression (Unit) // Args: none
       val f1 = FIFO[T](tileSize)
       // Parallel {
       Sequential {
-        f1 load srcFPGA(0::tileSize par 16)
-        dstFPGA(0::tileSize par 16) store f1
+        f1 load srcFPGA(0 :: tileSize par 16)
+        dstFPGA(0 :: tileSize par 16) store f1
       }
       // Pipe(tileSize by 1) { i => // This pipe forces the loadstore to run for enough iters
       //   dummyOut := i
@@ -672,41 +729,45 @@ object FifoLoadStore extends SpatialApp { // Regression (Unit) // Args: none
   def main() {
     val arraySize = N
 
-    val src = Array.tabulate(arraySize) { i => i % 256 }
+    val src = Array.tabulate(arraySize) { i =>
+      i % 256
+    }
     val dst = fifoLoadStore(src)
 
     val gold = src
 
     println("gold:")
-    (0 until arraySize) foreach { i => print(gold(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(gold(i) + " ")
+    }
     println("")
     println("dst:")
-    (0 until arraySize) foreach { i => print(dst(i) + " ") }
+    (0 until arraySize) foreach { i =>
+      print(dst(i) + " ")
+    }
     println("")
 
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (FifoLoadStore)")
   }
 }
-
-
 
 object SimpleReduce extends SpatialApp { // Regression (Unit) // Args: 7
   import IR._
 
   val N = 16.to[Int]
 
-  def simpleReduce[T:Type:Num](xin: T) = {
+  def simpleReduce[T: Type: Num](xin: T) = {
     val P = param(8)
 
-    val x = ArgIn[T]
+    val x   = ArgIn[T]
     val out = ArgOut[T]
     setArg(x, xin)
 
     Accel {
-      out := Reduce(Reg[T](0.to[T]))(N by 1){ ii =>
+      out := Reduce(Reg[T](0.to[T]))(N by 1) { ii =>
         x.value * ii.to[T]
-      }{_+_}
+      } { _ + _ }
     }
     getArg(out)
   }
@@ -717,7 +778,11 @@ object SimpleReduce extends SpatialApp { // Regression (Unit) // Args: 7
 
     val result = simpleReduce(x)
 
-    val gold = Array.tabulate(N){i => x * i}.reduce{_+_}
+    val gold = Array
+      .tabulate(N) { i =>
+        x * i
+      }
+      .reduce { _ + _ }
     println("expected: " + gold)
     println("result:   " + result)
 
@@ -726,21 +791,18 @@ object SimpleReduce extends SpatialApp { // Regression (Unit) // Args: 7
   }
 }
 
-
-
-
 object SimpleFold extends SpatialApp { // Regression (Unit) // Args: 1920
   import IR._
 
   val constTileSize = 16
 
-  def simple_fold[T:Type:Num](src: Array[T]) = {
+  def simple_fold[T: Type: Num](src: Array[T]) = {
     val outerPar = 1 (16 -> 16)
     val innerPar = 1 (16 -> 16)
-    val tileSize = constTileSize (constTileSize -> constTileSize)
-    val len = src.length; bound(len) = 9216
+    val tileSize = constTileSize(constTileSize -> constTileSize)
+    val len      = src.length; bound(len) = 9216
 
-    val N = ArgIn[Int]
+    val N   = ArgIn[Int]
     val out = ArgOut[T]
     setArg(N, len)
 
@@ -749,13 +811,13 @@ object SimpleFold extends SpatialApp { // Regression (Unit) // Args: 1920
 
     Accel {
       val accum = Reg[T](0.to[T])
-      Reduce(accum)(N by tileSize par outerPar){ i =>
+      Reduce(accum)(N by tileSize par outerPar) { i =>
         val b1 = SRAM[T](tileSize)
-        b1 load v1(i::i+tileSize par 16)
-        Reduce(Reg[T](0.to[T]))(tileSize par innerPar){ ii =>
+        b1 load v1(i :: i + tileSize par 16)
+        Reduce(Reg[T](0.to[T]))(tileSize par innerPar) { ii =>
           b1(ii)
-        } {_+_}
-      } {_+_}
+        } { _ + _ }
+      } { _ + _ }
       Pipe { out := accum }
     }
 
@@ -766,15 +828,18 @@ object SimpleFold extends SpatialApp { // Regression (Unit) // Args: 1920
   def main() {
     val len = args(0).to[Int]
 
-    val src = Array.tabulate(len){i => i % 256}
+    val src = Array.tabulate(len) { i =>
+      i % 256
+    }
     val result = simple_fold(src)
 
-    val gold = src.reduce{_+_}
+    val gold = src.reduce { _ + _ }
     println("expected: " + gold)
     println("result:   " + result)
 
     val cksum = result == gold
-    println("PASS: " + cksum + " (SimpleFold) * Here is an example for how to leave regression comments")
+    println(
+      "PASS: " + cksum + " (SimpleFold) * Here is an example for how to leave regression comments")
   }
 }
 
@@ -784,7 +849,7 @@ object Memcpy2D extends SpatialApp { // Regression (Unit) // Args: none
   val R = 16
   val C = 16
 
-  def memcpy_2d[T:Type:Num](src: Array[T], rows: Int, cols: Int): Array[T] = {
+  def memcpy_2d[T: Type: Num](src: Array[T], rows: Int, cols: Int): Array[T] = {
     val tileDim1 = param(16)
     val tileDim2 = 16 (16 -> 16)
 
@@ -798,10 +863,10 @@ object Memcpy2D extends SpatialApp { // Regression (Unit) // Args: none
     setMem(srcFPGA, src)
 
     Accel {
-      Sequential.Foreach(rowsIn by tileDim1, colsIn by tileDim2) { (i,j) =>
+      Sequential.Foreach(rowsIn by tileDim1, colsIn by tileDim2) { (i, j) =>
         val tile = SRAM[T](tileDim1, tileDim2)
-        tile load srcFPGA(i::i+tileDim1, j::j+tileDim2 par 16)
-        dstFPGA (i::i+tileDim1, j::j+tileDim2 par 8) store tile
+        tile load srcFPGA(i :: i + tileDim1, j :: j + tileDim2 par 16)
+        dstFPGA(i :: i + tileDim1, j :: j + tileDim2 par 8) store tile
       }
     }
     getMem(dstFPGA)
@@ -811,14 +876,16 @@ object Memcpy2D extends SpatialApp { // Regression (Unit) // Args: none
   def main() = {
     val rows = R
     val cols = C
-    val src = Array.tabulate(rows*cols) { i => i % 256 }
+    val src = Array.tabulate(rows * cols) { i =>
+      i % 256
+    }
 
     val dst = memcpy_2d(src, rows, cols)
 
     printArray(src, "src:")
     printArray(dst, "dst:")
 
-    val cksum = dst.zip(src){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(src) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (Memcpy2D)")
 
   }
@@ -830,11 +897,10 @@ object UniqueParallelLoad extends SpatialApp { // Regression (Unit) // Args: non
   val dim0 = 144
   val dim1 = 96
 
-  def awkwardload[T:Type:Num](src1: Array[T], src2: Array[T]):T = {
+  def awkwardload[T: Type: Num](src1: Array[T], src2: Array[T]): T = {
 
-
-    val mat = DRAM[T](dim0, dim1)
-    val other = DRAM[T](dim1, dim1)
+    val mat    = DRAM[T](dim0, dim1)
+    val other  = DRAM[T](dim1, dim1)
     val result = ArgOut[T]
     // Transfer data and start accelerator
     setMem(mat, src1)
@@ -843,19 +909,19 @@ object UniqueParallelLoad extends SpatialApp { // Regression (Unit) // Args: non
     Accel {
       val s1 = SRAM[T](dim0, dim1)
       val s2 = SRAM[T](dim1, dim1)
-      Parallel{
-        s1 load mat(0::dim0, 0::dim1)
-        s2 load other(0::dim1, 0::dim1)
+      Parallel {
+        s1 load mat(0 :: dim0, 0 :: dim1)
+        s2 load other(0 :: dim1, 0 :: dim1)
       }
 
       val accum = Reg[T](0.to[T])
-      Reduce(accum)(dim0 by 1, dim1 by 1) { (i,j) =>
-        s1(i,j)
-      }{_+_}
+      Reduce(accum)(dim0 by 1, dim1 by 1) { (i, j) =>
+        s1(i, j)
+      } { _ + _ }
       val accum2 = Reg[T](0.to[T])
-      Reduce(accum2)(dim1 by 1, dim1 by 1) { (i,j) =>
-        s2(i,j)
-      }{_+_}
+      Reduce(accum2)(dim1 by 1, dim1 by 1) { (i, j) =>
+        s2(i, j)
+      } { _ + _ }
       result := accum.value + accum2.value
     }
     getArg(result)
@@ -863,13 +929,37 @@ object UniqueParallelLoad extends SpatialApp { // Regression (Unit) // Args: non
 
   @virtualize
   def main() = {
-    val srcA = Array.tabulate(dim0) { i => Array.tabulate(dim1){ j => ((j + i) % 8) }}
-    val srcB = Array.tabulate(dim1) { i => Array.tabulate(dim1){ j => ((j + i) % 8) }}
+    val srcA = Array.tabulate(dim0) { i =>
+      Array.tabulate(dim1) { j =>
+        ((j + i) % 8)
+      }
+    }
+    val srcB = Array.tabulate(dim1) { i =>
+      Array.tabulate(dim1) { j =>
+        ((j + i) % 8)
+      }
+    }
 
     val dst = awkwardload(srcA.flatten, srcB.flatten)
 
-    val goldA = srcA.map{ row => row.map{el => el}.reduce{_+_}}.reduce{_+_}
-    val goldB = srcB.map{ row => row.map{el => el}.reduce{_+_}}.reduce{_+_}
+    val goldA = srcA
+      .map { row =>
+        row
+          .map { el =>
+            el
+          }
+          .reduce { _ + _ }
+      }
+      .reduce { _ + _ }
+    val goldB = srcB
+      .map { row =>
+        row
+          .map { el =>
+            el
+          }
+          .reduce { _ + _ }
+      }
+      .reduce { _ + _ }
     val gold = goldA + goldB
 
     println("Gold: " + gold)
@@ -880,14 +970,13 @@ object UniqueParallelLoad extends SpatialApp { // Regression (Unit) // Args: non
   }
 }
 
-
 object BlockReduce1D extends SpatialApp { // Regression (Unit) // Args: 1920
   import IR._
 
   val tileSize = 64
-  val p = 2
+  val p        = 2
 
-  def blockreduce_1d[T:Type:Num](src: Array[T], size: Int) = {
+  def blockreduce_1d[T: Type: Num](src: Array[T], size: Int) = {
     val sizeIn = ArgIn[Int]
     setArg(sizeIn, size)
 
@@ -898,12 +987,12 @@ object BlockReduce1D extends SpatialApp { // Regression (Unit) // Args: 1920
 
     Accel {
       val accum = SRAM[T](tileSize)
-      MemReduce(accum)(sizeIn by tileSize par 2){ i  =>
+      MemReduce(accum)(sizeIn by tileSize par 2) { i =>
         val tile = SRAM[T](tileSize)
-        tile load srcFPGA(i::i+tileSize par 16)
+        tile load srcFPGA(i :: i + tileSize par 16)
         tile
-      }{_+_}
-      dstFPGA(0::tileSize par 16) store accum
+      } { _ + _ }
+      dstFPGA(0 :: tileSize par 16) store accum
     }
     getMem(dstFPGA)
   }
@@ -911,17 +1000,29 @@ object BlockReduce1D extends SpatialApp { // Regression (Unit) // Args: 1920
   @virtualize
   def main() = {
     val size = args(0).to[Int]
-    val src = Array.tabulate(size){i => i % 256}
+    val src = Array.tabulate(size) { i =>
+      i % 256
+    }
 
     val dst = blockreduce_1d(src, size)
 
-    val tsArr = Array.tabulate(tileSize){i => i % 256}
-    val perArr = Array.tabulate(size/tileSize){i => i}
-    val gold = tsArr.map{ i => perArr.map{j => src(i+j*tileSize)}.reduce{_+_}}
+    val tsArr = Array.tabulate(tileSize) { i =>
+      i % 256
+    }
+    val perArr = Array.tabulate(size / tileSize) { i =>
+      i
+    }
+    val gold = tsArr.map { i =>
+      perArr
+        .map { j =>
+          src(i + j * tileSize)
+        }
+        .reduce { _ + _ }
+    }
 
     printArray(gold, "src:")
     printArray(dst, "dst:")
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (BlockReduce1D)")
 
     //    (0 until tileSize) foreach { i => assert(dst(i) == gold(i)) }
@@ -936,11 +1037,11 @@ object UnalignedLd extends SpatialApp { // Regression (Unit) // Args: 100 9
   val paddedCols = 1920
 
   @virtualize
-  def unaligned_1d[T:Type:Num](src: Array[T], ii: Int, numCols: Int) = {
-    val iters = ArgIn[Int]
+  def unaligned_1d[T: Type: Num](src: Array[T], ii: Int, numCols: Int) = {
+    val iters   = ArgIn[Int]
     val srcFPGA = DRAM[T](paddedCols)
-    val ldSize = ArgIn[Int]
-    val acc = ArgOut[T]
+    val ldSize  = ArgIn[Int]
+    val acc     = ArgOut[T]
 
     setArg(iters, ii)
     setArg(ldSize, numCols)
@@ -951,26 +1052,32 @@ object UnalignedLd extends SpatialApp { // Regression (Unit) // Args: 100 9
       ldSizeReg := ldSize.value
       val accum = Reduce(Reg[T](0.to[T]))(iters by 1 par 1) { k =>
         val mem = SRAM[T](16)
-        mem load srcFPGA(k*ldSizeReg.value::(k+1)*ldSizeReg.value)
-        Reduce(Reg[T](0.to[T]))(ldSizeReg.value by 1){i => mem(i) }{_+_}
-      }{_+_}
+        mem load srcFPGA(k * ldSizeReg.value :: (k + 1) * ldSizeReg.value)
+        Reduce(Reg[T](0.to[T]))(ldSizeReg.value by 1) { i =>
+          mem(i)
+        } { _ + _ }
+      } { _ + _ }
       acc := accum
     }
     getArg(acc)
-  } 
+  }
 
   @virtualize
   def main() = {
     // val size = args(0).to[Int]
-    val ii = args(0).to[Int]
+    val ii   = args(0).to[Int]
     val cols = args(1).to[Int]
     val size = paddedCols
-    val src = Array.tabulate(size) {i => i % 256 }
+    val src = Array.tabulate(size) { i =>
+      i % 256
+    }
 
     val dst = unaligned_1d(src, ii, cols)
 
-    val goldArray = Array.tabulate(ii*cols){ i => i % 256 }
-    val gold = goldArray.reduce{_+_}
+    val goldArray = Array.tabulate(ii * cols) { i =>
+      i % 256
+    }
+    val gold = goldArray.reduce { _ + _ }
 
     printArray(src, "src")
     printArray(goldArray, "gold")
@@ -984,15 +1091,14 @@ object UnalignedLd extends SpatialApp { // Regression (Unit) // Args: 100 9
   }
 }
 
-
 // Args: 192 384
 object BlockReduce2D extends SpatialApp { // Regression (Unit) // Args: 192 384
   import IR._
 
-  val N = 1920
+  val N        = 1920
   val tileSize = 16
 
-  def blockreduce_2d[T:Type:Num](src: Array[T], rows: Int, cols: Int) = {
+  def blockreduce_2d[T: Type: Num](src: Array[T], rows: Int, cols: Int) = {
     val rowsIn = ArgIn[Int]; setArg(rowsIn, rows)
     val colsIn = ArgIn[Int]; setArg(colsIn, cols)
 
@@ -1002,13 +1108,14 @@ object BlockReduce2D extends SpatialApp { // Regression (Unit) // Args: 192 384
     setMem(srcFPGA, src)
 
     Accel {
-      val accum = SRAM[T](tileSize,tileSize)
-      MemReduce(accum)(rowsIn by tileSize, colsIn by tileSize par 2){ (i,j)  =>
-        val tile = SRAM[T](tileSize,tileSize)
-        tile load srcFPGA(i::i+tileSize, j::j+tileSize  par 16)
-        tile
-      }{_+_}
-      dstFPGA(0::tileSize, 0::tileSize par 16) store accum
+      val accum = SRAM[T](tileSize, tileSize)
+      MemReduce(accum)(rowsIn by tileSize, colsIn by tileSize par 2) {
+        (i, j) =>
+          val tile = SRAM[T](tileSize, tileSize)
+          tile load srcFPGA(i :: i + tileSize, j :: j + tileSize par 16)
+          tile
+      } { _ + _ }
+      dstFPGA(0 :: tileSize, 0 :: tileSize par 16) store accum
     }
     getMem(dstFPGA)
   }
@@ -1017,26 +1124,46 @@ object BlockReduce2D extends SpatialApp { // Regression (Unit) // Args: 192 384
   def main() = {
     val numRows = args(0).to[Int]
     val numCols = args(1).to[Int]
-    val src = Array.tabulate(numRows) { i => Array.tabulate(numCols) { j => (i*numCols + j)%256 } } // Standard array
+    val src = Array.tabulate(numRows) { i =>
+      Array.tabulate(numCols) { j =>
+        (i * numCols + j) % 256
+      }
+    } // Standard array
     val flatsrc = src.flatten
 
     val dst = blockreduce_2d(src.flatten, numRows, numCols)
 
-    val numHorizontal = numRows/tileSize
-    val numVertical = numCols/tileSize
-    val numBlocks = numHorizontal*numVertical
+    val numHorizontal = numRows / tileSize
+    val numVertical   = numCols / tileSize
+    val numBlocks     = numHorizontal * numVertical
     // val gold = Array.tabulate(tileSize){i =>
     //   Array.tabulate(tileSize){j =>
 
     //     flatsrc(i*tileSize*tileSize + j*tileSize) }}.flatten
     // }.reduce{(a,b) => a.zip(b){_+_}}
-    val a1 = Array.tabulate(tileSize) { i => i }
-    val a2 = Array.tabulate(tileSize) { i => i }
-    val a3 = Array.tabulate(numHorizontal) { i => i }
-    val a4 = Array.tabulate(numVertical) { i => i }
-    val gold = a1.map{i=> a2.map{j => a3.map{ k=> a4.map {l=> 
-      flatsrc(i*numCols + j + k*tileSize*tileSize + l*tileSize) }}.flatten.reduce{_+_}
-    }}.flatten
+    val a1 = Array.tabulate(tileSize) { i =>
+      i
+    }
+    val a2 = Array.tabulate(tileSize) { i =>
+      i
+    }
+    val a3 = Array.tabulate(numHorizontal) { i =>
+      i
+    }
+    val a4 = Array.tabulate(numVertical) { i =>
+      i
+    }
+    val gold = a1.map { i =>
+      a2.map { j =>
+        a3.map { k =>
+            a4.map { l =>
+              flatsrc(i * numCols + j + k * tileSize * tileSize + l * tileSize)
+            }
+          }
+          .flatten
+          .reduce { _ + _ }
+      }
+    }.flatten
 
     // val first_el = (0 until numVertical).map{ case j => (0 until numHorizontal).map {case i => src.flatten(tileSize*j + tileSize*tileSize*i)}}.flatten.reduce{_+_}
     // val first_collapse_cols = ((numVertical*tileSize)/2)*(numVertical-1)
@@ -1048,13 +1175,12 @@ object BlockReduce2D extends SpatialApp { // Regression (Unit) // Args: 192 384
     printArray(gold, "src:")
     printArray(dst, "dst:")
     // dst.zip(gold){_==_} foreach {println(_)}
-    val cksum = dst.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = dst.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (BlockReduce2D)")
 
     //    (0 until tileSize) foreach { i => assert(dst(i) == gold(i)) }
   }
 }
-
 
 // Args: none
 object ScatterGather extends SpatialApp { // Regression (Sparse) // Args: none
@@ -1062,15 +1188,18 @@ object ScatterGather extends SpatialApp { // Regression (Sparse) // Args: none
 
   val N = 1920
 
-  val tileSize = 384
-  val maxNumAddrs = 1536
-  val offchip_dataSize = maxNumAddrs*6
-  val P = param(1)
+  val tileSize         = 384
+  val maxNumAddrs      = 1536
+  val offchip_dataSize = maxNumAddrs * 6
+  val P                = param(1)
 
-  def scattergather[T:Type:Num](addrs: Array[Int], offchip_data: Array[T], size: Int, dataSize: Int) = {
+  def scattergather[T: Type: Num](addrs: Array[Int],
+                                  offchip_data: Array[T],
+                                  size: Int,
+                                  dataSize: Int) = {
 
-    val srcAddrs = DRAM[Int](maxNumAddrs)
-    val gatherData = DRAM[T](offchip_dataSize)
+    val srcAddrs      = DRAM[Int](maxNumAddrs)
+    val gatherData    = DRAM[T](offchip_dataSize)
     val scatterResult = DRAM[T](offchip_dataSize)
 
     setMem(srcAddrs, addrs)
@@ -1080,7 +1209,7 @@ object ScatterGather extends SpatialApp { // Regression (Sparse) // Args: none
       val addrs = SRAM[Int](maxNumAddrs)
       Sequential.Foreach(maxNumAddrs by tileSize) { i =>
         val sram = SRAM[T](maxNumAddrs)
-        addrs load srcAddrs(i::i + tileSize par P)
+        addrs load srcAddrs(i :: i + tileSize par P)
         sram gather gatherData(addrs par P, tileSize)
         scatterResult(addrs par P, tileSize) scatter sram // TODO: What to do about parallel scatter when sending to same burst simultaneously???
       }
@@ -1093,18 +1222,17 @@ object ScatterGather extends SpatialApp { // Regression (Sparse) // Args: none
   def main() = {
     // val size = args(0).to[Int]
 
-
-    val size = maxNumAddrs
+    val size     = maxNumAddrs
     val dataSize = offchip_dataSize
     val addrs = Array.tabulate(size) { i =>
       // i*2 // for debug
       // TODO: Macro-virtualized winds up being particularly ugly here..
-      if      (i == 4)  lift(199)
-      else if (i == 6)  lift(offchip_dataSize-2)
-      else if (i == 7)  lift(191)
-      else if (i == 8)  lift(203)
-      else if (i == 9)  lift(381)
-      else if (i == 10) lift(offchip_dataSize-97)
+      if (i == 4) lift(199)
+      else if (i == 6) lift(offchip_dataSize - 2)
+      else if (i == 7) lift(191)
+      else if (i == 8) lift(203)
+      else if (i == 9) lift(381)
+      else if (i == 10) lift(offchip_dataSize - 97)
       else if (i == 15) lift(97)
       else if (i == 16) lift(11)
       else if (i == 17) lift(99)
@@ -1113,53 +1241,60 @@ object ScatterGather extends SpatialApp { // Regression (Sparse) // Args: none
       else if (i == 95) lift(1)
       else if (i == 83) lift(101)
       else if (i == 70) lift(203)
-      else if (i == 71) lift(offchip_dataSize-1)
-      else if (i % 2 == 0) i*2
-      else i*2 + offchip_dataSize/2
+      else if (i == 71) lift(offchip_dataSize - 1)
+      else if (i % 2 == 0) i * 2
+      else i * 2 + offchip_dataSize / 2
     }
-    val offchip_data = Array.fill(dataSize){ random[Int](dataSize) }
+    val offchip_data = Array.fill(dataSize) { random[Int](dataSize) }
     // val offchip_data = Array.tabulate (dataSize) { i => i}
 
     val received = scattergather(addrs, offchip_data, size, dataSize)
 
     // printArr(addrs, "addrs: ")
     // (0 until dataSize) foreach { i => println(i + " match? " + (addrs.map{a => a==i}.reduce{_||_}) ) }
-    val gold = Array.tabulate(dataSize){ i => if (addrs.map{a => a == i}.reduce{_||_}) offchip_data(i) else lift(0) }
+    val gold = Array.tabulate(dataSize) { i =>
+      if (addrs
+            .map { a =>
+              a == i
+            }
+            .reduce { _ || _ }) offchip_data(i)
+      else lift(0)
+    }
 
     printArray(gold, "gold:")
     printArray(received, "received:")
-    val cksum = received.zip(gold){_ == _}.reduce{_&&_}
+    val cksum = received.zip(gold) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (ScatterGather)")
   }
 }
-
-
 
 object SequentialWrites extends SpatialApp { // Regression (Unit) // Args: 7
   import IR._
 
   val tileSize = 16
-  val N = 5
+  val N        = 5
 
-  def sequentialwrites[A:Type:Num](srcData: Array[A], x: A) = {
-    val T = param(tileSize)
-    val P = param(4)
+  def sequentialwrites[A: Type: Num](srcData: Array[A], x: A) = {
+    val T   = param(tileSize)
+    val P   = param(4)
     val src = DRAM[A](T)
     val dst = DRAM[A](T)
-    val xx = ArgIn[A]
+    val xx  = ArgIn[A]
     setArg(xx, x)
     setMem(src, srcData)
     Accel {
       val in = SRAM[A](T)
-      in load src(0::T par 16)
+      in load src(0 :: T par 16)
 
-      MemReduce(in)(N by 1){ i =>
+      MemReduce(in)(N by 1) { i =>
         val d = SRAM[A](T)
-        Foreach(T by 1){ i => d(i) = xx.value + i.to[A] }
+        Foreach(T by 1) { i =>
+          d(i) = xx.value + i.to[A]
+        }
         d
-      }{_+_}
+      } { _ + _ }
 
-      dst(0::T par 16) store in
+      dst(0 :: T par 16) store in
     }
     getMem(dst)
   }
@@ -1167,17 +1302,21 @@ object SequentialWrites extends SpatialApp { // Regression (Unit) // Args: 7
   @virtualize
   def main() = {
     val x = args(0).to[Int]
-    val srcData = Array.tabulate(tileSize){ i => i % 256 }
+    val srcData = Array.tabulate(tileSize) { i =>
+      i % 256
+    }
 
     val result = sequentialwrites(srcData, x)
 
-    val first = x*N
-    val gold = Array.tabulate(tileSize) { i => first + i*N}
+    val first = x * N
+    val gold = Array.tabulate(tileSize) { i =>
+      first + i * N
+    }
 
     printArray(gold, "gold: ")
     printArray(result, "result: ")
-    val cksum = result.zip(gold){_ == _}.reduce{_&&_}
-    println("PASS: " + cksum  + " (SequentialWrites)")
+    val cksum = result.zip(gold) { _ == _ }.reduce { _ && _ }
+    println("PASS: " + cksum + " (SequentialWrites)")
 
   }
 }
@@ -1187,17 +1326,19 @@ object ChangingCtrMax extends SpatialApp { // Regression (Unit) // Args: none
   import IR._
 
   val tileSize = 16
-  val N = 5
+  val N        = 5
 
-  def changingctrmax[T:Type:Num](): Array[T] = {
+  def changingctrmax[T: Type: Num](): Array[T] = {
     val result = DRAM[T](16)
     Accel {
       val rMem = SRAM[T](16)
       Sequential.Foreach(16 by 1) { i =>
-        val accum = Reduce(0)(i by 1){ j => j }{_+_}
+        val accum = Reduce(0)(i by 1) { j =>
+          j
+        } { _ + _ }
         rMem(i) = accum.value.to[T]
       }
-      result(0::16 par 16) store rMem
+      result(0 :: 16 par 16) store rMem
     }
     getMem(result)
   }
@@ -1209,16 +1350,17 @@ object ChangingCtrMax extends SpatialApp { // Regression (Unit) // Args: none
     val result = changingctrmax[Int]()
 
     // Use strange if (i==0) b/c iter1: 0 by 1 and iter2: 1 by 1 both reduce to 0
-    val gold = Array.tabulate(tileSize) { i => if (i==0) lift(0) else (i-1)*i/2}
+    val gold = Array.tabulate(tileSize) { i =>
+      if (i == 0) lift(0) else (i - 1) * i / 2
+    }
 
     printArray(gold, "gold: ")
     printArray(result, "result: ")
-    val cksum = result.zip(gold){_ == _}.reduce{_&&_}
-    println("PASS: " + cksum  + " (ChangingCtrMax)")
+    val cksum = result.zip(gold) { _ == _ }.reduce { _ && _ }
+    println("PASS: " + cksum + " (ChangingCtrMax)")
 
   }
 }
-
 
 object FifoPushPop extends SpatialApp { // Regression (Unit) // Args: 384
   import IR._
@@ -1231,14 +1373,16 @@ object FifoPushPop extends SpatialApp { // Regression (Unit) // Args: 384
     val acc = ArgOut[Int]
 
     Accel {
-      val f1 = FIFO[Int](tileSize)
+      val f1    = FIFO[Int](tileSize)
       val accum = Reg[Int](0)
-      Reduce(accum)(size by tileSize){ iter =>
-        Foreach(tileSize by 1){i => f1.enq(iter + i) }
-        Reduce(0)(tileSize by 1){ i =>
+      Reduce(accum)(size by tileSize) { iter =>
+        Foreach(tileSize by 1) { i =>
+          f1.enq(iter + i)
+        }
+        Reduce(0)(tileSize by 1) { i =>
           f1.deq()
-        }{_+_}
-      }{_+_}
+        } { _ + _ }
+      } { _ + _ }
       acc := accum
     }
     getArg(acc)
@@ -1248,7 +1392,11 @@ object FifoPushPop extends SpatialApp { // Regression (Unit) // Args: 384
   def main() {
     val arraySize = args(0).to[Int]
 
-    val gold = Array.tabulate(arraySize){ i => i }.reduce{_+_}
+    val gold = Array
+      .tabulate(arraySize) { i =>
+        i
+      }
+      .reduce { _ + _ }
     val dst = fifopushpop(arraySize)
 
     println("gold: " + gold)
@@ -1259,7 +1407,7 @@ object FifoPushPop extends SpatialApp { // Regression (Unit) // Args: 384
   }
 }
 
-// object MultilevelPar extends SpatialApp { 
+// object MultilevelPar extends SpatialApp {
 //   import IR._
 //   val dim = 32
 //   val M = dim
@@ -1300,26 +1448,25 @@ object FifoPushPop extends SpatialApp { // Regression (Unit) // Args: 384
 //   }
 // }
 
-
 object StreamTest extends SpatialApp {
-   import IR._
+  import IR._
 
-   override val target = targets.DE1
+  override val target = targets.DE1
 
-   @virtualize
-   def main() {
-     type T = Int
+  @virtualize
+  def main() {
+    type T = Int
 
-     val frameRows = 16
-     val frameCols = 16
-     val onboardVideo = target.VideoCamera
-     val mem = DRAM[T](frameRows, frameCols)
-     val conduit = StreamIn[T](onboardVideo)
-     // val avalon = StreamOut()
+    val frameRows    = 16
+    val frameCols    = 16
+    val onboardVideo = target.VideoCamera
+    val mem          = DRAM[T](frameRows, frameCols)
+    val conduit      = StreamIn[T](onboardVideo)
+    // val avalon = StreamOut()
 
     // Raw Spatial streaming pipes
     Accel {
-      Foreach(*, frameCols by 1) { (_,j) =>
+      Foreach(*, frameCols by 1) { (_, j) =>
         val fifo1 = FIFO[T](frameCols)
         val fifo2 = FIFO[T](frameCols)
         Stream(frameCols by 1) { j =>
@@ -1338,7 +1485,6 @@ object StreamTest extends SpatialApp {
       }
     }
 
-
   }
 
 }
@@ -1352,18 +1498,24 @@ object BasicFSM extends SpatialApp { // Regression (FSM) // Args: none
     Accel {
       val bram = SRAM[Int](32)
 
-      FSM[Int]{state => state < 32}{state =>
+      FSM[Int] { state =>
+        state < 32
+      } { state =>
         bram(state) = state
-      }{state => state + 1}
+      } { state =>
+        state + 1
+      }
 
-      dram(0::32 par 16) store bram
+      dram(0 :: 32 par 16) store bram
     }
-    val gold = Array.tabulate(32){i => i}
+    val gold = Array.tabulate(32) { i =>
+      i
+    }
 
     val result = getMem(dram)
     printArray(result, "Result")
     printArray(gold, "Gold")
-    val cksum = gold.zip(result){_ == _}.reduce{_&&_}
+    val cksum = gold.zip(result) { _ == _ }.reduce { _ && _ }
     // for(i <- 0 until 32) { assert(result(i) == i, "Incorrect at index " + i) }
     println("PASS: " + cksum + " (BasicFSM)")
   }
@@ -1378,23 +1530,28 @@ object BasicCondFSM extends SpatialApp { // Regression (FSM) // Args: none
     Accel {
       val bram = SRAM[Int](32)
 
-      FSM[Int]{state => state < 32} { state =>
+      FSM[Int] { state =>
+        state < 32
+      } { state =>
         if (state < 16) {
           bram(31 - state) = state // 16:31 [15, 14, ... 0]
-        }
-        else {
+        } else {
           bram(state - 16) = state // 0:15 [16, 17, ... 31]
         }
-      }{state => state + 1}
+      } { state =>
+        state + 1
+      }
 
-      dram(0::32 par 16) store bram
+      dram(0 :: 32 par 16) store bram
     }
     val result = getMem(dram)
-    val gold = Array.tabulate(32){i => if (i < 16) 16 + i else 31 - i }
+    val gold = Array.tabulate(32) { i =>
+      if (i < 16) 16 + i else 31 - i
+    }
     printArray(result, "Result")
     printArray(gold, "Gold")
     // for (i <- 0 until 32){ assert(result(i) == gold(i)) }
-    val cksum = gold.zip(result){_ == _}.reduce{_&&_}
+    val cksum = gold.zip(result) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (BasicCondFSM)")
   }
 }
@@ -1412,7 +1569,7 @@ object DotProductFSM extends SpatialApp { // Regression (FSM) // Args: none
     }
     val vecA = DRAM[Int](128)
     val vecB = DRAM[Int](128)
-    val out = ArgOut[Int]
+    val out  = ArgOut[Int]
     setMem(vecA, vectorA)
     setMem(vecB, vectorB)
     Accel {
@@ -1424,14 +1581,18 @@ object DotProductFSM extends SpatialApp { // Regression (FSM) // Args: none
           a load vecA(i :: i + 16 par 16)
           b load vecB(i :: i + 16 par 16)
         }
-        outer_accum := outer_accum + Reduce(0)(0 until 16) { i => a(i) * b(i) } {
+        outer_accum := outer_accum + Reduce(0)(0 until 16) { i =>
+          a(i) * b(i)
+        } {
           _ + _
         }
-      } { i => i + 16 }
-      Pipe{out := outer_accum}
+      } { i =>
+        i + 16
+      }
+      Pipe { out := outer_accum }
     }
     val result = getArg(out)
-    val gold = vectorA.zip(vectorB){_ * _}.reduce {_ + _}
+    val gold   = vectorA.zip(vectorB) { _ * _ }.reduce { _ + _ }
     println("Expected: " + gold + ", got: " + result)
     // assert(result == gold, "Result (" + result + ") did not equal expected (" + gold + ")")
     val cksum = result == gold
@@ -1439,9 +1600,9 @@ object DotProductFSM extends SpatialApp { // Regression (FSM) // Args: none
   }
 }
 
-object FixPtInOutArg extends SpatialApp {  // Regression (Unit) // Args: -5.25
+object FixPtInOutArg extends SpatialApp { // Regression (Unit) // Args: -5.25
   import IR._
-  type T = FixPt[TRUE,_16,_16]
+  type T = FixPt[TRUE, _16, _16]
 
   @virtualize
   def main() {
@@ -1455,15 +1616,14 @@ object FixPtInOutArg extends SpatialApp {  // Regression (Unit) // Args: -5.25
 
     // Create HW accelerator
     Accel {
-      y := (x * 9)/4 + 7
+      y := (x * 9) / 4 + 7
     }
-
 
     // Extract results from accelerator
     val result = getArg(y)
 
     // Create validation checks and debug code
-    val gold = (N * 9)/4 + 7
+    val gold = (N * 9) / 4 + 7
     println("expected: " + gold)
     println("result: " + result)
 
@@ -1472,9 +1632,9 @@ object FixPtInOutArg extends SpatialApp {  // Regression (Unit) // Args: -5.25
   }
 }
 
-object FixPtMem extends SpatialApp {  // Regression (Unit) // Args: 5.25 2.125
+object FixPtMem extends SpatialApp { // Regression (Unit) // Args: 5.25 2.125
   import IR._
-  type T = FixPt[TRUE,_16,_16]
+  type T = FixPt[TRUE, _16, _16]
 
   @virtualize
   def main() {
@@ -1482,7 +1642,9 @@ object FixPtMem extends SpatialApp {  // Regression (Unit) // Args: 5.25 2.125
     val N = 128
     val a = args(0).to[T]
     val b = args(1).to[T]
-    val x_data = Array.tabulate(N){ i => a * i.to[T]}
+    val x_data = Array.tabulate(N) { i =>
+      a * i.to[T]
+    }
     val x = DRAM[T](N)
     val y = DRAM[T](N)
     val s = ArgIn[T]
@@ -1494,27 +1656,28 @@ object FixPtMem extends SpatialApp {  // Regression (Unit) // Args: 5.25 2.125
       val xx = SRAM[T](N)
       val yy = SRAM[T](N)
       xx load x(0 :: N par 16)
-      Foreach(N by 1) { i => 
+      Foreach(N by 1) { i =>
         yy(i) = xx(i) * s
       }
       y(0 :: N par 16) store yy
     }
 
-
     // Extract results from accelerator
     val result = getMem(y)
 
     // Create validation checks and debug code
-    val gold = x_data.map{ dat => dat * b }
+    val gold = x_data.map { dat =>
+      dat * b
+    }
     printArray(gold, "expected: ")
     printArray(result, "got: ")
 
-    val cksum = gold.zip(result){_ == _}.reduce{_&&_}
+    val cksum = gold.zip(result) { _ == _ }.reduce { _ && _ }
     println("PASS: " + cksum + " (FixPtMem)")
   }
 }
 
-object DiagBanking extends SpatialApp {  // Regression (Unit) // Args: none
+object DiagBanking extends SpatialApp { // Regression (Unit) // Args: none
   import IR._
   type T = Int
 
@@ -1523,28 +1686,29 @@ object DiagBanking extends SpatialApp {  // Regression (Unit) // Args: none
     // Declare SW-HW interface vals
     val colpar = 8
     val rowpar = 3
-    val M = 64
-    val N = 32
-    val x_data = (0::M, 0::N){(i,j) => (i*N + j).to[T]}
-    val x = DRAM[T](M,N)
+    val M      = 64
+    val N      = 32
+    val x_data = (0 :: M, 0 :: N) { (i, j) =>
+      (i * N + j).to[T]
+    }
+    val x = DRAM[T](M, N)
     val s = ArgOut[T]
 
     setMem(x, x_data)
 
     Accel {
-      val xx = SRAM[T](M,N)
+      val xx = SRAM[T](M, N)
       xx load x(0 :: M, 0 :: N par colpar)
-      s := Reduce(Reg[T](0.to[T]))(N by 1, M by 1 par rowpar) { (j,i) => 
-        xx(i,j)
-      }{_+_}
+      s := Reduce(Reg[T](0.to[T]))(N by 1, M by 1 par rowpar) { (j, i) =>
+        xx(i, j)
+      } { _ + _ }
     }
-
 
     // Extract results from accelerator
     val result = getArg(s)
 
     // Create validation checks and debug code
-    val gold = x_data.reduce{_+_}
+    val gold = x_data.reduce { _ + _ }
     println("Result: (gold) " + gold + " =?= " + result)
 
     val cksum = gold == result
@@ -1552,7 +1716,7 @@ object DiagBanking extends SpatialApp {  // Regression (Unit) // Args: none
   }
 }
 
-object MultiArgOut extends SpatialApp {  // Regression (Unit) // Args: 5 10
+object MultiArgOut extends SpatialApp { // Regression (Unit) // Args: 5 10
   import IR._
   type T = Int
 
@@ -1568,12 +1732,10 @@ object MultiArgOut extends SpatialApp {  // Regression (Unit) // Args: 5 10
     setArg(a, i)
     setArg(b, j)
 
-
     Accel {
       x := a
       y := b
     }
-
 
     // Extract results from accelerator
     val xx = getArg(x)

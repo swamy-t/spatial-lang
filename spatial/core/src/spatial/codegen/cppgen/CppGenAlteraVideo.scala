@@ -10,15 +10,13 @@ trait CppGenAlteraVideo extends CppCodegen {
   val IR: SpatialExp
   import IR._
 
-
   // override def quote(s: Exp[_]): String = {
   //   s match {
   //     case b: Bound[_] => super.quote(s)
   //     case _ => super.quote(s)
 
   //   }
-  // } 
-
+  // }
 
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
     case AxiMSNew() =>

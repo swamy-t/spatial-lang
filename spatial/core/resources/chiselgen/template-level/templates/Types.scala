@@ -40,386 +40,423 @@ import chisel3.internal.sourceinfo._
 import chisel3.internal.firrtl.PrimOp.AsUIntOp
 
 // Raw numbers
-class RawBits(b: Int) extends Bundle { 
-	val raw = UInt(b.W)
+class RawBits(b: Int) extends Bundle {
+  val raw = UInt(b.W)
 
-	// Conversions
-	def storeFix(dst: FixedPoint): Unit = { 
-	  assert(dst.d + dst.f == b)
-	  dst.number := raw
-	}
+  // Conversions
+  def storeFix(dst: FixedPoint): Unit = {
+    assert(dst.d + dst.f == b)
+    dst.number := raw
+  }
 
-	// Arithmetic
+  // Arithmetic
 
-  override def cloneType = (new RawBits(b)).asInstanceOf[this.type] // See chisel3 bug 358
+  override def cloneType =
+    (new RawBits(b)).asInstanceOf[this.type] // See chisel3 bug 358
 }
 
 // Fixed point numbers
 class FixedPoint(val s: Boolean, val d: Int, val f: Int) extends Bundle {
-	// Overloaded
-	def this(s: Int, d: Int, f: Int) = this(s == 1, d, f)
-	def this(tuple: (Boolean, Int, Int)) = this(tuple._1, tuple._2, tuple._3)
+  // Overloaded
+  def this(s: Int, d: Int, f: Int) = this(s == 1, d, f)
+  def this(tuple: (Boolean, Int, Int)) = this(tuple._1, tuple._2, tuple._3)
 
-	// Properties
-	val number = UInt((d + f).W)
-	val debug_overflow = Bool()
+  // Properties
+  val number         = UInt((d + f).W)
+  val debug_overflow = Bool()
 
-	// Conversions
-	def storeRaw(dst: RawBits): Unit = {
-		dst.raw := number
-	}
-	def cast(dst: FixedPoint, rounding: String = "truncate", saturating: String = "lazy"): Unit = {
-		val new_width = dst.d + dst.f
-		val new_raw = Wire(UInt(new_width.W))
+  // Conversions
+  def storeRaw(dst: RawBits): Unit = {
+    dst.raw := number
+  }
+  def cast(dst: FixedPoint,
+           rounding: String = "truncate",
+           saturating: String = "lazy"): Unit = {
+    val new_width = dst.d + dst.f
+    val new_raw   = Wire(UInt(new_width.W))
 
-		// Compute new frac part
-		// val new_frac = Wire(UInt(dst.f.W))
-		val new_frac = if (dst.f < f) { // shrink decimals
-			rounding match {
-				case "truncate" => 
-					val shave = f - dst.f
-					number(shave + dst.f - 1, shave)
-					// (0 until dst.f).map{ i => number(shave + i)*scala.math.pow(2,i).toInt.U }.reduce{_+_}
-				case "unbiased" => 
-					0.U(dst.f.W)
-					// TODO: Add rng
-				case "biased" =>
-					0.U(dst.f.W)
-					// TODO: force direction
-				case _ =>
-					0.U(dst.f.W)
-					// TODO: throw error
-			}
-		} else if (dst.f > f) { // expand decimals
-			val expand = dst.f - f
-			util.Cat(number(f,0), 0.U(expand.W))
-			// (0 until dst.f).map{ i => if (i < expand) {0.U} else {number(i - expand)*scala.math.pow(2,i).toInt.U}}.reduce{_+_}
-		} else { // keep same
-			if (dst.f > 0) number(dst.f-1,0) else (0.U(1.W))
-			// (0 until dst.f).map{ i => number(i)*scala.math.pow(2,i).toInt.U }.reduce{_+_}
-		}
-
-		// Compute new dec part
-		val new_dec = if (dst.d < d) { // shrink decimals
-			saturating match { 
-				case "lazy" =>
-					val shave = d - dst.d
-					dst.debug_overflow := (0 until shave).map{i => number(d + f - 1 - i)}.reduce{_||_}
-					number(dst.d + f - 1, f)
-					// (0 until dst.d).map{i => number(f + i) * scala.math.pow(2,i).toInt.U}.reduce{_+_}
-				case "saturation" =>
-					// TODO: Do something good
-					0.U(dst.d.W)
-				case _ =>
-					0.U(dst.d.W)
-			}
-		} else if (dst.d > d) { // expand decimals
-			val expand = dst.d - d
-			val sgn_extend = if (s) { number(d+f-1) } else {0.U(1.W)}
-			util.Cat(util.Fill(expand, sgn_extend), number(f+d-1, f))
-			// (0 until dst.d).map{ i => if (i >= dst.d - expand) {sgn_extend*scala.math.pow(2,i).toInt.U} else {number(i+f)*scala.math.pow(2,i).toInt.U }}.reduce{_+_}
-		} else { // keep same
-			number(f+d-1, f)
-			// (0 until dst.d).map{ i => number(i + f)*scala.math.pow(2,i).toInt.U }.reduce{_+_}
-		}
-
-		val ftest = 0.U(4.W)
-		val dtest = 1.U(4.W)
-		if (dst.f > 0) {
-			dst.number := util.Cat(new_dec, new_frac)	
-		} else {
-			dst.number := new_dec
-		}
-		
-		// dst.number := util.Cat(new_dec, new_frac) //new_frac + new_dec*(scala.math.pow(2,dst.f).toInt.U)
-
-	}
-	
-	// Arithmetic
-	override def connect (rawop: Data)(implicit sourceInfo: SourceInfo, connectionCompileOptions: chisel3.core.CompileOptions): Unit = {
-		rawop match {
-			case op: FixedPoint =>
-				number := op.number
-			case op: UInt =>
-				number := op
-		}
-	}
-
-	def +[T] (rawop: T): FixedPoint = {
-		rawop match {
-			case op: FixedPoint => 
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, scala.math.max(op.d, d) + 1, scala.math.max(op.f, f))
-				val return_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val full_result = Wire(new FixedPoint(upcasted_type))
-				// Do upcasted operation
-				full_result.number := this.number + op.number
-				// Downcast to result
-				val result = Wire(new FixedPoint(return_type))
-				full_result.cast(result)
-				result
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this + op_cast
-		}
-	}
-
-	def -[T] (rawop: T): FixedPoint = {
-		rawop match { 
-			case op: FixedPoint => 
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, scala.math.max(op.d, d) + 1, scala.math.max(op.f, f))
-				val return_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val full_result = Wire(new FixedPoint(upcasted_type))
-				// Do upcasted operation
-				full_result.number := this.number - op.number
-				// Downcast to result
-				val result = Wire(new FixedPoint(return_type))
-				full_result.cast(result)
-				result
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this - op_cast
-
-		}
-	}
-
-	def *[T] (rawop: T): FixedPoint = {
-		rawop match { 
-			case op: FixedPoint => 
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, op.d + d, op.f + f)
-				val return_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val full_result = Wire(new FixedPoint(upcasted_type))
-				// Do upcasted operation
-				val expanded_self = Utils.Cat(Mux(this.isNeg(), (scala.math.pow(2,op.d + op.f)-1).toLong.U((op.d + op.f).W), 0.U((op.d + op.f).W)), this.number)
-				val expanded_op = Utils.Cat(Mux(op.isNeg(), (scala.math.pow(2,d+f)-1).toLong.U((d+f).W), 0.U((d+f).W)), op.number)
-				full_result.number := expanded_self * expanded_op
-
-				// Downcast to result
-				val result = Wire(new FixedPoint(return_type))
-				full_result.cast(result)
-				result
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this * op_cast
-			}
-	}
-
-	def /[T] (rawop: T): FixedPoint = {
-		rawop match { 
-			case op: FixedPoint => 
-				if (op.f + f == 0) {
-					(this.number / op.number).FP(op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				} else {
-					// Compute upcasted type and return type
-					val upcasted_type = (op.s | s, op.d + d, op.f + f + 1)
-					val return_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-					// Get upcasted operators
-					val full_result = Wire(new FixedPoint(upcasted_type))
-					// Do upcasted operation
-					if (op.s | s) {
-						val numerator = util.Cat(this.number, 0.U((op.f+f+1).W)).asSInt
-						val denominator = op.number.asSInt
-						full_result.number := (numerator/denominator).asUInt
-					} else {
-						val numerator = util.Cat(this.number, 0.U((op.f+f+1).W))
-						val denominator = op.number
-						full_result.number := (numerator/denominator) // Not sure why we need the +1 in pow2
-					}
-					// Downcast to result
-					val result = Wire(new FixedPoint(return_type))
-					full_result.cast(result)
-					result					
-				}
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this / op_cast
-		}
-	}
-
-	def %[T] (rawop: T): FixedPoint = {
-		rawop match { 
-			case op: FixedPoint => 
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, op.d + d, op.f + f)
-				val return_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val full_result = Wire(new FixedPoint(upcasted_type))
-				// Do upcasted operation
-				full_result.number := this.number % op.number // Not sure why we need the +1 in pow2
-				// Downcast to result
-				val result = Wire(new FixedPoint(return_type))
-				full_result.cast(result)
-				result
-			case op: UInt =>
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this % op_cast
-
-		}
-	}
-
-	def <[T] (rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
-		rawop match { 
-			case op: FixedPoint => 
-
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val lhs = Wire(new FixedPoint(upcasted_type))
-				val rhs = Wire(new FixedPoint(upcasted_type))
-				this.cast(lhs)
-				op.cast(rhs)
-				if (op.s | s) {lhs.number.asSInt < rhs.number.asSInt} else {lhs.number < rhs.number}
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this < op_cast
-		}
-	}
-
-	def <=[T] (rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
-		rawop match { 
-			case op: FixedPoint => 
-
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val lhs = Wire(new FixedPoint(upcasted_type))
-				val rhs = Wire(new FixedPoint(upcasted_type))
-				this.cast(lhs)
-				op.cast(rhs)
-				if (op.s | s) {lhs.number.asSInt <= rhs.number.asSInt} else {lhs.number <= rhs.number}
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this <= op_cast
-		}
-	}
-	
-	def >[T] (rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
-		rawop match { 
-			case op: FixedPoint => 
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val lhs = Wire(new FixedPoint(upcasted_type))
-				val rhs = Wire(new FixedPoint(upcasted_type))
-				this.cast(lhs)
-				op.cast(rhs)
-				if (op.s | s) {lhs.number.asSInt > rhs.number.asSInt} else {lhs.number > rhs.number}
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this > op_cast
-		}
-	}
-
-	def >=[T] (rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
-		rawop match { 
-			case op: FixedPoint => 
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val lhs = Wire(new FixedPoint(upcasted_type))
-				val rhs = Wire(new FixedPoint(upcasted_type))
-				this.cast(lhs)
-				op.cast(rhs)
-				if (op.s | s) {lhs.number.asSInt >= rhs.number.asSInt} else {lhs.number >= rhs.number}
-			case op: UInt => 
-				val op_cast = Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
-				this > op_cast
-		}
-	}
-
-	def === [T](r: T): Bool = { // TODO: Probably completely wrong for signed fixpts
-		r match {
-			case op: FixedPoint =>
-				// Compute upcasted type and return type
-				val upcasted_type = (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
-				// Get upcasted operators
-				val lhs = Wire(new FixedPoint(upcasted_type))
-				val rhs = Wire(new FixedPoint(upcasted_type))
-				this.cast(lhs)
-				op.cast(rhs)
-				lhs.number === rhs.number
-			case op: UInt => 
-				// Compute upcasted type and return type
-				val upcasted_type = (s, d, f)
-				// Get upcasted operators
-				val rhs = Utils.FixedPoint(s,d,f, op)
-				number === rhs.number
-		}
-	}
-
-	def isNeg (): Bool = {
-		Mux(s.B && number(f+d-1), true.B, false.B)
-	}
-
-    def unary_-() : FixedPoint = {
-    	val neg = Wire(new FixedPoint(s,d,f))
-    	neg.number := ~number + 1.U
-    	neg
+    // Compute new frac part
+    // val new_frac = Wire(UInt(dst.f.W))
+    val new_frac = if (dst.f < f) { // shrink decimals
+      rounding match {
+        case "truncate" =>
+          val shave = f - dst.f
+          number(shave + dst.f - 1, shave)
+        // (0 until dst.f).map{ i => number(shave + i)*scala.math.pow(2,i).toInt.U }.reduce{_+_}
+        case "unbiased" =>
+          0.U(dst.f.W)
+        // TODO: Add rng
+        case "biased" =>
+          0.U(dst.f.W)
+        // TODO: force direction
+        case _ =>
+          0.U(dst.f.W)
+        // TODO: throw error
+      }
+    } else if (dst.f > f) { // expand decimals
+      val expand = dst.f - f
+      util.Cat(number(f, 0), 0.U(expand.W))
+      // (0 until dst.f).map{ i => if (i < expand) {0.U} else {number(i - expand)*scala.math.pow(2,i).toInt.U}}.reduce{_+_}
+    } else { // keep same
+      if (dst.f > 0) number(dst.f - 1, 0) else (0.U(1.W))
+      // (0 until dst.f).map{ i => number(i)*scala.math.pow(2,i).toInt.U }.reduce{_+_}
     }
 
+    // Compute new dec part
+    val new_dec = if (dst.d < d) { // shrink decimals
+      saturating match {
+        case "lazy" =>
+          val shave = d - dst.d
+          dst.debug_overflow := (0 until shave)
+            .map { i =>
+              number(d + f - 1 - i)
+            }
+            .reduce { _ || _ }
+          number(dst.d + f - 1, f)
+        // (0 until dst.d).map{i => number(f + i) * scala.math.pow(2,i).toInt.U}.reduce{_+_}
+        case "saturation" =>
+          // TODO: Do something good
+          0.U(dst.d.W)
+        case _ =>
+          0.U(dst.d.W)
+      }
+    } else if (dst.d > d) { // expand decimals
+      val expand     = dst.d - d
+      val sgn_extend = if (s) { number(d + f - 1) } else { 0.U(1.W) }
+      util.Cat(util.Fill(expand, sgn_extend), number(f + d - 1, f))
+      // (0 until dst.d).map{ i => if (i >= dst.d - expand) {sgn_extend*scala.math.pow(2,i).toInt.U} else {number(i+f)*scala.math.pow(2,i).toInt.U }}.reduce{_+_}
+    } else { // keep same
+      number(f + d - 1, f)
+      // (0 until dst.d).map{ i => number(i + f)*scala.math.pow(2,i).toInt.U }.reduce{_+_}
+    }
 
+    val ftest = 0.U(4.W)
+    val dtest = 1.U(4.W)
+    if (dst.f > 0) {
+      dst.number := util.Cat(new_dec, new_frac)
+    } else {
+      dst.number := new_dec
+    }
 
-	// def * (op: FixedPoint): FixedPoint = {
-	// 	// Compute upcasted type
-	// 	val sign = op.s | s
-	// 	val d_prec = op.d + d
-	// 	val f_prec = op.f + f
-	// 	// Do math on UInts
-	// 	val r1 = Wire(new RawBits(d_prec + f_prec))
-	// 	this.storeRaw(r1)
-	// 	val r2 = Wire(new RawBits(d_prec + f_prec))
-	// 	op.storeRaw(r2)
-	// 	val rawResult = r1 * r2
-	// 	// Store to FixedPoint result
-	// 	val result = Wire(new FixedPoint(sign, scala.math.max(op.d, d), scala.math.max(op.f, f)))
-	// 	rawResult.storeFix(result)
-	// 	result.debug_overflow := Mux(rawResult.raw(0), true.B, false.B)
-	// 	result
-	// }
+    // dst.number := util.Cat(new_dec, new_frac) //new_frac + new_dec*(scala.math.pow(2,dst.f).toInt.U)
 
-    override def cloneType = (new FixedPoint(s,d,f)).asInstanceOf[this.type] // See chisel3 bug 358
+  }
+
+  // Arithmetic
+  override def connect(rawop: Data)(
+      implicit sourceInfo: SourceInfo,
+      connectionCompileOptions: chisel3.core.CompileOptions): Unit = {
+    rawop match {
+      case op: FixedPoint =>
+        number := op.number
+      case op: UInt =>
+        number := op
+    }
+  }
+
+  def +[T](rawop: T): FixedPoint = {
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type =
+          (op.s | s, scala.math.max(op.d, d) + 1, scala.math.max(op.f, f))
+        val return_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val full_result = Wire(new FixedPoint(upcasted_type))
+        // Do upcasted operation
+        full_result.number := this.number + op.number
+        // Downcast to result
+        val result = Wire(new FixedPoint(return_type))
+        full_result.cast(result)
+        result
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this + op_cast
+    }
+  }
+
+  def -[T](rawop: T): FixedPoint = {
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type =
+          (op.s | s, scala.math.max(op.d, d) + 1, scala.math.max(op.f, f))
+        val return_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val full_result = Wire(new FixedPoint(upcasted_type))
+        // Do upcasted operation
+        full_result.number := this.number - op.number
+        // Downcast to result
+        val result = Wire(new FixedPoint(return_type))
+        full_result.cast(result)
+        result
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this - op_cast
+
+    }
+  }
+
+  def *[T](rawop: T): FixedPoint = {
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type = (op.s | s, op.d + d, op.f + f)
+        val return_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val full_result = Wire(new FixedPoint(upcasted_type))
+        // Do upcasted operation
+        val expanded_self = Utils.Cat(
+          Mux(this.isNeg(),
+              (scala.math.pow(2, op.d + op.f) - 1).toLong.U((op.d + op.f).W),
+              0.U((op.d + op.f).W)),
+          this.number)
+        val expanded_op = Utils.Cat(
+          Mux(op.isNeg(),
+              (scala.math.pow(2, d + f) - 1).toLong.U((d + f).W),
+              0.U((d + f).W)),
+          op.number)
+        full_result.number := expanded_self * expanded_op
+
+        // Downcast to result
+        val result = Wire(new FixedPoint(return_type))
+        full_result.cast(result)
+        result
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this * op_cast
+    }
+  }
+
+  def /[T](rawop: T): FixedPoint = {
+    rawop match {
+      case op: FixedPoint =>
+        if (op.f + f == 0) {
+          (this.number / op.number)
+            .FP(op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        } else {
+          // Compute upcasted type and return type
+          val upcasted_type = (op.s | s, op.d + d, op.f + f + 1)
+          val return_type =
+            (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+          // Get upcasted operators
+          val full_result = Wire(new FixedPoint(upcasted_type))
+          // Do upcasted operation
+          if (op.s | s) {
+            val numerator   = util.Cat(this.number, 0.U((op.f + f + 1).W)).asSInt
+            val denominator = op.number.asSInt
+            full_result.number := (numerator / denominator).asUInt
+          } else {
+            val numerator   = util.Cat(this.number, 0.U((op.f + f + 1).W))
+            val denominator = op.number
+            full_result.number := (numerator / denominator) // Not sure why we need the +1 in pow2
+          }
+          // Downcast to result
+          val result = Wire(new FixedPoint(return_type))
+          full_result.cast(result)
+          result
+        }
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this / op_cast
+    }
+  }
+
+  def %[T](rawop: T): FixedPoint = {
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type = (op.s | s, op.d + d, op.f + f)
+        val return_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val full_result = Wire(new FixedPoint(upcasted_type))
+        // Do upcasted operation
+        full_result.number := this.number % op.number // Not sure why we need the +1 in pow2
+        // Downcast to result
+        val result = Wire(new FixedPoint(return_type))
+        full_result.cast(result)
+        result
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this % op_cast
+
+    }
+  }
+
+  def <[T](rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val lhs = Wire(new FixedPoint(upcasted_type))
+        val rhs = Wire(new FixedPoint(upcasted_type))
+        this.cast(lhs)
+        op.cast(rhs)
+        if (op.s | s) { lhs.number.asSInt < rhs.number.asSInt } else {
+          lhs.number < rhs.number
+        }
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this < op_cast
+    }
+  }
+
+  def <=[T](rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val lhs = Wire(new FixedPoint(upcasted_type))
+        val rhs = Wire(new FixedPoint(upcasted_type))
+        this.cast(lhs)
+        op.cast(rhs)
+        if (op.s | s) { lhs.number.asSInt <= rhs.number.asSInt } else {
+          lhs.number <= rhs.number
+        }
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this <= op_cast
+    }
+  }
+
+  def >[T](rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val lhs = Wire(new FixedPoint(upcasted_type))
+        val rhs = Wire(new FixedPoint(upcasted_type))
+        this.cast(lhs)
+        op.cast(rhs)
+        if (op.s | s) { lhs.number.asSInt > rhs.number.asSInt } else {
+          lhs.number > rhs.number
+        }
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this > op_cast
+    }
+  }
+
+  def >=[T](rawop: T): Bool = { // TODO: Probably completely wrong for signed fixpts
+    rawop match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val lhs = Wire(new FixedPoint(upcasted_type))
+        val rhs = Wire(new FixedPoint(upcasted_type))
+        this.cast(lhs)
+        op.cast(rhs)
+        if (op.s | s) { lhs.number.asSInt >= rhs.number.asSInt } else {
+          lhs.number >= rhs.number
+        }
+      case op: UInt =>
+        val op_cast =
+          Utils.FixedPoint(this.s, op.getWidth max this.d, this.f, op)
+        this > op_cast
+    }
+  }
+
+  def ===[T](r: T): Bool = { // TODO: Probably completely wrong for signed fixpts
+    r match {
+      case op: FixedPoint =>
+        // Compute upcasted type and return type
+        val upcasted_type =
+          (op.s | s, scala.math.max(op.d, d), scala.math.max(op.f, f))
+        // Get upcasted operators
+        val lhs = Wire(new FixedPoint(upcasted_type))
+        val rhs = Wire(new FixedPoint(upcasted_type))
+        this.cast(lhs)
+        op.cast(rhs)
+        lhs.number === rhs.number
+      case op: UInt =>
+        // Compute upcasted type and return type
+        val upcasted_type = (s, d, f)
+        // Get upcasted operators
+        val rhs = Utils.FixedPoint(s, d, f, op)
+        number === rhs.number
+    }
+  }
+
+  def isNeg(): Bool = {
+    Mux(s.B && number(f + d - 1), true.B, false.B)
+  }
+
+  def unary_-(): FixedPoint = {
+    val neg = Wire(new FixedPoint(s, d, f))
+    neg.number := ~number + 1.U
+    neg
+  }
+
+  // def * (op: FixedPoint): FixedPoint = {
+  // 	// Compute upcasted type
+  // 	val sign = op.s | s
+  // 	val d_prec = op.d + d
+  // 	val f_prec = op.f + f
+  // 	// Do math on UInts
+  // 	val r1 = Wire(new RawBits(d_prec + f_prec))
+  // 	this.storeRaw(r1)
+  // 	val r2 = Wire(new RawBits(d_prec + f_prec))
+  // 	op.storeRaw(r2)
+  // 	val rawResult = r1 * r2
+  // 	// Store to FixedPoint result
+  // 	val result = Wire(new FixedPoint(sign, scala.math.max(op.d, d), scala.math.max(op.f, f)))
+  // 	rawResult.storeFix(result)
+  // 	result.debug_overflow := Mux(rawResult.raw(0), true.B, false.B)
+  // 	result
+  // }
+
+  override def cloneType =
+    (new FixedPoint(s, d, f)).asInstanceOf[this.type] // See chisel3 bug 358
 
 }
 
 // Testing
 class FixedPointTester(val s: Boolean, val d: Int, val f: Int) extends Module {
-	def this(tuple: (Boolean, Int, Int)) = this(tuple._1, tuple._2, tuple._3)
-	val io = IO( new Bundle {
-		val num1 = new RawBits(d+f).asInput
-		val num2 = new RawBits(d+f).asInput
+  def this(tuple: (Boolean, Int, Int)) = this(tuple._1, tuple._2, tuple._3)
+  val io = IO(new Bundle {
+    val num1 = new RawBits(d + f).asInput
+    val num2 = new RawBits(d + f).asInput
 
-		val add_result = new RawBits(d+f).asOutput
-		val prod_result = new RawBits(d+f).asOutput
-		val sub_result = new RawBits(d+f).asOutput
-		val quotient_result = new RawBits(d+f).asOutput
-	})
+    val add_result      = new RawBits(d + f).asOutput
+    val prod_result     = new RawBits(d + f).asOutput
+    val sub_result      = new RawBits(d + f).asOutput
+    val quotient_result = new RawBits(d + f).asOutput
+  })
 
-	val fix1 = Wire(new FixedPoint(s,d,f))
-	io.num1.storeFix(fix1)
-	val fix2 = Wire(new FixedPoint(s,d,f))
-	io.num2.storeFix(fix2)
-	val sum = fix1 + fix2
-	sum.storeRaw(io.add_result)
-	val prod = fix1 * fix2
-	prod.storeRaw(io.prod_result)
-	val sub = fix1 - fix2
-	sub.storeRaw(io.sub_result)
-	val quotient = fix1 / fix2
-	quotient.storeRaw(io.quotient_result)
-
-
-
-
+  val fix1 = Wire(new FixedPoint(s, d, f))
+  io.num1.storeFix(fix1)
+  val fix2 = Wire(new FixedPoint(s, d, f))
+  io.num2.storeFix(fix2)
+  val sum = fix1 + fix2
+  sum.storeRaw(io.add_result)
+  val prod = fix1 * fix2
+  prod.storeRaw(io.prod_result)
+  val sub = fix1 - fix2
+  sub.storeRaw(io.sub_result)
+  val quotient = fix1 / fix2
+  quotient.storeRaw(io.quotient_result)
 
 }
-
-
-
 // import Node._
 // import ChiselError._
 

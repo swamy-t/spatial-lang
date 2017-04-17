@@ -3,15 +3,15 @@ package fringe
 import chisel3._
 
 class IdealMemory(
-  val w: Int,
-  val burstSizeBytes: Int
+    val w: Int,
+    val burstSizeBytes: Int
 ) extends Module {
 
-  val wordSizeBytes = w/8
+  val wordSizeBytes = w / 8
   val pageSizeBytes = 16
   val pageSizeWords = pageSizeBytes / (wordSizeBytes)
 
-  val io = IO(Flipped(new DRAMStream(w, burstSizeBytes/wordSizeBytes)))
+  val io = IO(Flipped(new DRAMStream(w, burstSizeBytes / wordSizeBytes)))
 
   // Flop vld and tag inputs to delay the response by one cycle
   val tagInFF = Module(new FF(w))
@@ -29,7 +29,7 @@ class IdealMemory(
   // Current size is a measly 1 Mega Word / Bank. This limits the total
   // memory size to 64 MB (assuming w=32 bits).
   // Investigate alternatives if necessary.
-  val mems = List.tabulate(burstSizeBytes/wordSizeBytes) { i =>
+  val mems = List.tabulate(burstSizeBytes / wordSizeBytes) { i =>
     val m = Module(new SRAM(w, (1 << 20) * 1))
     m.io.raddr := io.cmd.bits.addr
     m.io.waddr := io.cmd.bits.addr

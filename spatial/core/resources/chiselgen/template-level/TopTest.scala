@@ -73,4 +73,3 @@
 //   }
 //   def tester = { c: DUTType => new TopModuleUnitTester(c) }
 // }
-

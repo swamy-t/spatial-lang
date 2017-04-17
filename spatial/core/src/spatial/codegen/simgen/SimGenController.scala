@@ -10,19 +10,23 @@ trait SimGenController extends SimCodegen {
 
   def getAncestors(node: Exp[_]): Seq[Exp[_]] = parentOf(node) match {
     case Some(ctrl) => ctrl +: getAncestors(ctrl)
-    case None => Nil
+    case None       => Nil
   }
   def emitControlBody(node: Exp[_], blocks: Block[_]*) = {
-    getAncestors(node).foreach{ancestor => emit(src"import $ancestor._")}
+    getAncestors(node).foreach { ancestor =>
+      emit(src"import $ancestor._")
+    }
     if (isOuterControl(node)) {
-      emit(src"""children = List(${childrenOf(node).map(quote).mkString(", ")})""")
+      emit(src"""children = List(${childrenOf(node)
+        .map(quote)
+        .mkString(", ")})""")
     }
 
     blocks.foreach(emitBlock)
   }
 
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case Hwblock(func,isForever) if !isForever =>
+    case Hwblock(func, isForever) if !isForever =>
       val stream = newStream(quote(lhs))
       val parent = if (isOuterControl(lhs)) "SequentialPipe" else "InnerPipe"
       withStream(stream) {

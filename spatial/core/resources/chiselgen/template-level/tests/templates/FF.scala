@@ -3,10 +3,9 @@ package templates
 
 import chisel3.iotesters.{PeekPokeTester, Driver, ChiselFlatSpec}
 
-
 /**
- * FF test harness
- */
+  * FF test harness
+  */
 class FFTests(c: FF) extends PeekPokeTester(c) {
   val initval = 10
   poke(c.io.input.init, initval)
@@ -24,7 +23,7 @@ class FFTests(c: FF) extends PeekPokeTester(c) {
   val numCycles = 15
   for (i <- 0 until numCycles) {
     val newenable = rnd.nextInt(2)
-    val oldout = peek(c.io.output.data)
+    val oldout    = peek(c.io.output.data)
     poke(c.io.input.data, i)
     poke(c.io.input.enable, newenable)
     step(1)
@@ -57,11 +56,17 @@ class FFTests(c: FF) extends PeekPokeTester(c) {
 class NBufFFTests(c: NBufFF) extends PeekPokeTester(c) {
   val timeout = 400
   val initval = 1 //(0 until c.numBufs).map { i => i+1}
-  var stageActives = Array.tabulate(c.numBufs) { i => 0 }
-  val latencies = (0 until c.numBufs).map { i => math.abs(rnd.nextInt(15)) + 5 } 
+  var stageActives = Array.tabulate(c.numBufs) { i =>
+    0
+  }
+  val latencies = (0 until c.numBufs).map { i =>
+    math.abs(rnd.nextInt(15)) + 5
+  }
   val shortestLatency = latencies.min
   poke(c.io.input.init, initval)
-  var stageCounts = Array.tabulate(c.numBufs) { i => 0 }
+  var stageCounts = Array.tabulate(c.numBufs) { i =>
+    0
+  }
   var stagesDone = 0
   step(5)
 
@@ -85,12 +90,12 @@ class NBufFFTests(c: NBufFF) extends PeekPokeTester(c) {
 
   }
   def handleStageEnables = {
-    (0 until c.numBufs).foreach { i => 
+    (0 until c.numBufs).foreach { i =>
       executeStage(i)
     }
   }
   def handleBcast(expected: Int) {
-    (0 until c.numBufs).foreach { i => 
+    (0 until c.numBufs).foreach { i =>
       expect(c.io.output(i).data, expected)
     }
   }
@@ -101,7 +106,7 @@ class NBufFFTests(c: NBufFF) extends PeekPokeTester(c) {
     poke(c.io.input.enable, 0)
   }
   def read(stage: Int, data: Int) {
-    (0 until c.numBufs).foreach { i => 
+    (0 until c.numBufs).foreach { i =>
       val gold = if (data - i < 0) 0 else data - i
       // val a = peek(c.io.output(i).data)
       // println(s"Expecting stage $i to report $gold, reporting $a (${a == gold})")
@@ -109,16 +114,16 @@ class NBufFFTests(c: NBufFF) extends PeekPokeTester(c) {
     }
 
   }
-  def rotate(x:List[Int], i:Int) = {x.drop(i)++x.take(i)}
+  def rotate(x: List[Int], i: Int) = { x.drop(i) ++ x.take(i) }
 
   var numCycles = 0
-  var data = 0
+  var data      = 0
   for (k <- 1 until 10) { // run 10 writes
     numCycles = 0
     stagesDone = 0
-    (0 until c.numBufs).foreach{ i => 
+    (0 until c.numBufs).foreach { i =>
       poke(c.io.sEn(i), 1)
-      stageActives(i) = 1 
+      stageActives(i) = 1
     }
     val stage = (k - 1) % c.numBufs
     write(k)
@@ -126,17 +131,17 @@ class NBufFFTests(c: NBufFF) extends PeekPokeTester(c) {
     while (!(stagesDone == c.numBufs) & numCycles < timeout) {
       if (cyclesChecking < shortestLatency) read(stage, k)
       handleStageEnables
-      numCycles = numCycles+1
-      cyclesChecking = cyclesChecking+1
+      numCycles = numCycles + 1
+      cyclesChecking = cyclesChecking + 1
     }
-    
+
     step(5)
   }
-  (0 until c.numBufs).foreach{ i => 
+  (0 until c.numBufs).foreach { i =>
     poke(c.io.sEn(i), 0)
   }
 
-  if ( (numCycles > timeout) | (numCycles < 2) ) {
+  if ((numCycles > timeout) | (numCycles < 2)) {
     expect(c.io.output(0).data, 999) // TODO: Figure out how to "expect" signals that are not hw IO
   }
 
@@ -144,7 +149,7 @@ class NBufFFTests(c: NBufFF) extends PeekPokeTester(c) {
   poke(c.io.broadcast.enable, 1)
   poke(c.io.broadcast.data, 666)
   step(1)
-  poke(c.io.broadcast.enable,0)
+  poke(c.io.broadcast.enable, 0)
   step(1)
   for (k <- 0 until c.numBufs) {
     numCycles = 0
@@ -152,15 +157,14 @@ class NBufFFTests(c: NBufFF) extends PeekPokeTester(c) {
     while (!(stagesDone == c.numBufs) & numCycles < timeout) {
       handleBcast(666)
       handleStageEnables
-      numCycles = numCycles+1
+      numCycles = numCycles + 1
     }
     step(5)
   }
 
-  if ( (numCycles > timeout) | (numCycles < 2) ) {
+  if ((numCycles > timeout) | (numCycles < 2)) {
     expect(c.io.output(0).data, 999) // TODO: Figure out how to "expect" signals that are not hw IO
   }
-
 
   step(5)
 }
@@ -179,11 +183,12 @@ class FFNoInitTests(c: FFNoInit) extends PeekPokeTester(c) {
   val numCycles = 15
   for (i <- 0 until numCycles) {
     val newenable = rnd.nextInt(2)
-    val oldout = peek(c.io.output.data)
+    val oldout    = peek(c.io.output.data)
     poke(c.io.input.data, i)
     poke(c.io.input.enable, newenable)
     step(1)
-    if (newenable == 1) expect(c.io.output.data, i) else expect(c.io.output.data, oldout)
+    if (newenable == 1) expect(c.io.output.data, i)
+    else expect(c.io.output.data, oldout)
   }
 }
 
@@ -201,11 +206,12 @@ class FFNoInitNoResetTests(c: FFNoInitNoReset) extends PeekPokeTester(c) {
   val numCycles = 15
   for (i <- 0 until numCycles) {
     val newenable = rnd.nextInt(2)
-    val oldout = peek(c.io.output.data)
+    val oldout    = peek(c.io.output.data)
     poke(c.io.input.data, i)
     poke(c.io.input.enable, newenable)
     step(1)
-    if (newenable == 1) expect(c.io.output.data, i) else expect(c.io.output.data, oldout)
+    if (newenable == 1) expect(c.io.output.data, i)
+    else expect(c.io.output.data, oldout)
   }
 }
 
@@ -223,11 +229,12 @@ class FFNoResetTests(c: FFNoReset) extends PeekPokeTester(c) {
   val numCycles = 15
   for (i <- 0 until numCycles) {
     val newenable = rnd.nextInt(2)
-    val oldout = peek(c.io.output.data)
+    val oldout    = peek(c.io.output.data)
     poke(c.io.input.data, i)
     poke(c.io.input.enable, newenable)
     step(1)
-    if (newenable == 1) expect(c.io.output.data, i) else expect(c.io.output.data, oldout)
+    if (newenable == 1) expect(c.io.output.data, i)
+    else expect(c.io.output.data, oldout)
   }
 }
 
@@ -238,7 +245,7 @@ class TFFTests(c: TFF) extends PeekPokeTester(c) {
   val numCycles = 20
   for (i <- 0 until numCycles) {
     val newenable = rnd.nextInt(2)
-    val oldout = peek(c.io.output.data)
+    val oldout    = peek(c.io.output.data)
     poke(c.io.input.enable, newenable)
     step(1)
     val now = peek(c.io.output.data)
@@ -247,7 +254,7 @@ class TFFTests(c: TFF) extends PeekPokeTester(c) {
     if (newenable == 1 & oldout == 1) {
       expect(c.io.output.data, 0)
     } else if (newenable == 1 & oldout == 0) {
-      expect(c.io.output.data, 1)      
+      expect(c.io.output.data, 1)
     } else {
       expect(c.io.output.data, oldout)
     }
@@ -268,14 +275,14 @@ class SRFFTests(c: SRFF) extends PeekPokeTester(c) {
   val numCycles = 20
   for (i <- 0 until numCycles) {
     val newenable = rnd.nextInt(3)
-    val oldout = peek(c.io.output.data)
+    val oldout    = peek(c.io.output.data)
     newenable match {
-      case 0 => 
+      case 0 =>
         poke(c.io.input.reset, 1)
         poke(c.io.input.set, 0)
-      case 1 => 
+      case 1 =>
         poke(c.io.input.reset, 0)
-        poke(c.io.input.set, 1)      
+        poke(c.io.input.set, 1)
       case 2 =>
         poke(c.io.input.reset, 0)
         poke(c.io.input.set, 0)
@@ -284,9 +291,9 @@ class SRFFTests(c: SRFF) extends PeekPokeTester(c) {
     step(1)
 
     newenable match {
-      case 0 => 
+      case 0 =>
         expect(c.io.output.data, 0)
-      case 1 => 
+      case 1 =>
         expect(c.io.output.data, 1)
       case 2 =>
         expect(c.io.output.data, oldout)

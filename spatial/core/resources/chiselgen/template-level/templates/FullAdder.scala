@@ -16,7 +16,7 @@ class FullAdder extends Module {
   val a_xor_b = io.a ^ io.b
   io.sum := a_xor_b ^ io.cin
   // Generate the carry
-  val a_and_b = io.a & io.b
+  val a_and_b   = io.a & io.b
   val b_and_cin = io.b & io.cin
   val a_and_cin = io.a & io.cin
   io.cout := a_and_b | b_and_cin | a_and_cin

@@ -15,9 +15,10 @@ trait CppGenMath extends CppCodegen {
       s match {
         case lhs: Sym[_] =>
           lhs match {
-            case Def(FixRandom(x))=> s"x${lhs.id}_fixrnd"
-            case Def(FixNeg(x:Exp[_])) => s"x${lhs.id}_neg${quoteOperand(x)}"
-            case Def(FixAdd(x:Exp[_],y:Exp[_])) => s"x${lhs.id}_sum${quoteOperand(x)}_${quoteOperand(y)}"
+            case Def(FixRandom(x))      => s"x${lhs.id}_fixrnd"
+            case Def(FixNeg(x: Exp[_])) => s"x${lhs.id}_neg${quoteOperand(x)}"
+            case Def(FixAdd(x: Exp[_], y: Exp[_])) =>
+              s"x${lhs.id}_sum${quoteOperand(x)}_${quoteOperand(y)}"
             case _ => super.quote(s)
           }
         case _ => super.quote(s)
@@ -25,32 +26,38 @@ trait CppGenMath extends CppCodegen {
     } else {
       super.quote(s)
     }
-  } 
+  }
 
   def quoteOperand(s: Exp[_]): String = s match {
-    case ss:Sym[_] => s"x${ss.id}"
-    case Const(xx:Exp[_]) => s"${boundOf(xx).toInt}"
-    case _ => "unk"
+    case ss: Sym[_]        => s"x${ss.id}"
+    case Const(xx: Exp[_]) => s"${boundOf(xx).toInt}"
+    case _                 => "unk"
   }
 
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case FixAbs(x)  => emit(src"${lhs.tp} $lhs = abs($x);")
+    case FixAbs(x) => emit(src"${lhs.tp} $lhs = abs($x);")
 
-    case FltAbs(x)  => emit(src"${lhs.tp} $lhs = fabs($x);")
-    case FltLog(x)  => x.tp match {
-      case DoubleType() => emit(src"${lhs.tp} $lhs = Math.log($x)")
-      case FloatType()  => emit(src"${lhs.tp} $lhs = Math.log($x.toDouble).toFloat")
-    }
-    case FltExp(x)  => x.tp match {
-      case DoubleType() => emit(src"${lhs.tp} $lhs = Math.exp($x)")
-      case FloatType()  => emit(src"${lhs.tp} $lhs = Math.exp($x.toDouble).toFloat")
-    }
-    case FltSqrt(x) => x.tp match {
-      case DoubleType() => emit(src"${lhs.tp} $lhs = Math.sqrt($x)")
-      case FloatType()  => emit(src"${lhs.tp} $lhs = Math.sqrt($x.toDouble).toFloat")
-    }
+    case FltAbs(x) => emit(src"${lhs.tp} $lhs = fabs($x);")
+    case FltLog(x) =>
+      x.tp match {
+        case DoubleType() => emit(src"${lhs.tp} $lhs = Math.log($x)")
+        case FloatType() =>
+          emit(src"${lhs.tp} $lhs = Math.log($x.toDouble).toFloat")
+      }
+    case FltExp(x) =>
+      x.tp match {
+        case DoubleType() => emit(src"${lhs.tp} $lhs = Math.exp($x)")
+        case FloatType() =>
+          emit(src"${lhs.tp} $lhs = Math.exp($x.toDouble).toFloat")
+      }
+    case FltSqrt(x) =>
+      x.tp match {
+        case DoubleType() => emit(src"${lhs.tp} $lhs = Math.sqrt($x)")
+        case FloatType() =>
+          emit(src"${lhs.tp} $lhs = Math.sqrt($x.toDouble).toFloat")
+      }
 
-    case Mux(sel, a, b) => 
+    case Mux(sel, a, b) =>
       emit(src"${lhs.tp} $lhs;")
       emit(src"if ($sel){ $lhs = $a; } else { $lhs = $b; }")
 

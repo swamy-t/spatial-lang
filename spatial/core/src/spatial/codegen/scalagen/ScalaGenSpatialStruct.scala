@@ -9,7 +9,8 @@ trait ScalaGenSpatialStruct extends ScalaGenStructs with ScalaGenBits {
   import IR._
 
   override def invalid(tp: Type[_]): String = tp match {
-    case struct: StructType[_] => src"""$struct(${struct.fields.map(_._2).map(invalid).mkString(", ")})"""
+    case struct: StructType[_] =>
+      src"""$struct(${struct.fields.map(_._2).map(invalid).mkString(", ")})"""
 
     case _ => super.invalid(tp)
   }

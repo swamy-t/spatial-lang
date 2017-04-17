@@ -7,9 +7,9 @@ import templates.SRFF
 import templates.Utils.log2Up
 
 /**
- * DRAM Memory Access Generator
- * MAG config register format
- */
+  * DRAM Memory Access Generator
+  * MAG config register format
+  */
 case class MAGOpcode() extends Bundle {
   val scatterGather = Bool()
 //  val isWr = Bool()
@@ -58,9 +58,14 @@ class StoreStream(p: StreamParInfo) extends MemoryStream(addrWidth = 64) {
 
 }
 
-class AppStreams(loadPar: List[StreamParInfo], storePar: List[StreamParInfo]) extends Bundle {
-  val loads = HVec.tabulate(loadPar.size) { i => new LoadStream(loadPar(i)) }
-  val stores = HVec.tabulate(storePar.size) { i => new StoreStream(storePar(i)) }
+class AppStreams(loadPar: List[StreamParInfo], storePar: List[StreamParInfo])
+    extends Bundle {
+  val loads = HVec.tabulate(loadPar.size) { i =>
+    new LoadStream(loadPar(i))
+  }
+  val stores = HVec.tabulate(storePar.size) { i =>
+    new StoreStream(storePar(i))
+  }
 
   override def cloneType(): this.type = {
     new AppStreams(loadPar, storePar).asInstanceOf[this.type]
@@ -69,11 +74,11 @@ class AppStreams(loadPar: List[StreamParInfo], storePar: List[StreamParInfo]) ex
 }
 
 class DRAMCommand(w: Int, v: Int) extends Bundle {
-  val addr = UInt(64.W)
-  val isWr = Bool() // 1
-  val tag = UInt(w.W)
+  val addr     = UInt(64.W)
+  val isWr     = Bool() // 1
+  val tag      = UInt(w.W)
   val streamId = UInt(w.W)
-  val wdata = Vec(v, UInt(w.W)) // v
+  val wdata    = Vec(v, UInt(w.W)) // v
 
   override def cloneType(): this.type = {
     new DRAMCommand(w, v).asInstanceOf[this.type]
@@ -82,8 +87,8 @@ class DRAMCommand(w: Int, v: Int) extends Bundle {
 }
 
 class DRAMResponse(w: Int, v: Int) extends Bundle {
-  val rdata = Vec(v, UInt(w.W)) // v
-  val tag = UInt(w.W)
+  val rdata    = Vec(v, UInt(w.W)) // v
+  val tag      = UInt(w.W)
   val streamId = UInt(w.W)
 
   override def cloneType(): this.type = {
@@ -93,7 +98,7 @@ class DRAMResponse(w: Int, v: Int) extends Bundle {
 }
 
 class DRAMStream(w: Int, v: Int) extends Bundle {
-  val cmd = Decoupled(new DRAMCommand(w, v))
+  val cmd  = Decoupled(new DRAMCommand(w, v))
   val resp = Flipped(Decoupled(new DRAMResponse(w, v)))
 
   override def cloneType(): this.type = {
@@ -101,9 +106,15 @@ class DRAMStream(w: Int, v: Int) extends Bundle {
   }
 }
 
-class GenericStreams(streamIns: List[StreamParInfo], streamOuts: List[StreamParInfo]) extends Bundle {
-  val ins = HVec.tabulate(streamIns.size) { i => StreamIn(streamIns(i)) }
-  val outs = HVec.tabulate(streamOuts.size) { i => StreamOut(streamOuts(i)) }
+class GenericStreams(streamIns: List[StreamParInfo],
+                     streamOuts: List[StreamParInfo])
+    extends Bundle {
+  val ins = HVec.tabulate(streamIns.size) { i =>
+    StreamIn(streamIns(i))
+  }
+  val outs = HVec.tabulate(streamOuts.size) { i =>
+    StreamOut(streamOuts(i))
+  }
 
   override def cloneType(): this.type = {
     new GenericStreams(streamIns, streamOuts).asInstanceOf[this.type]
@@ -113,7 +124,7 @@ class GenericStreams(streamIns: List[StreamParInfo], streamOuts: List[StreamParI
 
 class StreamIO(val p: StreamParInfo) extends Bundle {
   val data = UInt(p.w.W)
-  val tag = UInt(p.w.W)
+  val tag  = UInt(p.w.W)
   val last = Bool()
 
   override def cloneType(): this.type = new StreamIO(p).asInstanceOf[this.type]

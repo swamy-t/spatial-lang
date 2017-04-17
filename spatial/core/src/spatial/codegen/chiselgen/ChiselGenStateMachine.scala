@@ -26,31 +26,36 @@ trait ChiselGenStateMachine extends ChiselCodegen with ChiselGenController {
     } else {
       super.quote(s)
     }
-  } 
+  }
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case StateMachine(ens,start,notDone,action,nextState,state) =>
-      val parent_kernel = controllerStack.head 
+    case StateMachine(ens, start, notDone, action, nextState, state) =>
+      val parent_kernel = controllerStack.head
       controllerStack.push(lhs)
 
       emitController(lhs, None, None, true)
 
-      val extraEn = if (ens.length > 0) {src"""List(${ens.map(quote).mkString(",")}).map(en=>en).reduce{_&&_}"""} else {"true.B"}
+      val extraEn = if (ens.length > 0) {
+        src"""List(${ens.map(quote).mkString(",")}).map(en=>en).reduce{_&&_}"""
+      } else { "true.B" }
       emit("// Emitting notDone")
       emitBlock(notDone)
       emit("// Emitting action")
-      withSubStream(src"${lhs}", src"${parent_kernel}", styleOf(lhs) == InnerPipe) {
+      withSubStream(src"${lhs}",
+                    src"${parent_kernel}",
+                    styleOf(lhs) == InnerPipe) {
         emit(s"// Controller Stack: ${controllerStack.tail}")
         visitBlock(action)
       }
       emit("// Emitting nextState")
       visitBlock(nextState)
       emit(src"${lhs}_sm.io.input.enable := ${lhs}_en & ${extraEn} ")
-      emit(src"${lhs}_sm.io.input.nextState := ${nextState.result}.number // Assume always int")
+      emit(
+        src"${lhs}_sm.io.input.nextState := ${nextState.result}.number // Assume always int")
       emit(src"${lhs}_sm.io.input.initState := ${start}.number")
       emitGlobal(src"val $state = Wire(UInt(32.W))")
       emit(src"$state := ${lhs}_sm.io.output.state")
       emit(src"${lhs}_sm.io.input.doneCondition := ~${notDone.result}")
 
-    case _ => super.emitNode(lhs,rhs)
+    case _ => super.emitNode(lhs, rhs)
   }
 }

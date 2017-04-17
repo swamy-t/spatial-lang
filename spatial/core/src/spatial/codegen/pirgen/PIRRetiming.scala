@@ -11,8 +11,8 @@ trait PIRRetiming extends PIRTraversal {
   var STAGES: Int = 10
 
   /**
-   * For all vector inputs for each CU, if inputs have mismatched delays or come
-   * from other stages (and LCA is not a stream controller), put them through a retiming FIFO
+    * For all vector inputs for each CU, if inputs have mismatched delays or come
+    * from other stages (and LCA is not a stream controller), put them through a retiming FIFO
    **/
   def retime(cus: List[CU], others: Iterable[CU]): Unit = {
     var producer = Map[GlobalBus, CU]()
@@ -20,8 +20,10 @@ trait PIRRetiming extends PIRTraversal {
 
     val compute = cus.filter(_.allStages.nonEmpty)
 
-    compute.foreach{cu =>
-      globalOutputs(cu).foreach{bus => producer += bus -> cu}
+    compute.foreach { cu =>
+      globalOutputs(cu).foreach { bus =>
+        producer += bus -> cu
+      }
 
       // Ignore inputs for cchains, srams here - SRAM vectors are already retimed, others are scalars which are retimed differently
       val ins = globalInputs(cu.allStages)
@@ -49,16 +51,17 @@ trait PIRRetiming extends PIRTraversal {
       case None => cur
     }*/
 
-    compute.foreach{cu => if (deps(cu).nonEmpty) {
-      dbg(s"Retiming inputs to CU ${cu.name}: ")
+    compute.foreach { cu =>
+      if (deps(cu).nonEmpty) {
+        dbg(s"Retiming inputs to CU ${cu.name}: ")
 
-      val vecIns = deps(cu).iterator.collect{case bus: VectorBus => bus}
+        val vecIns = deps(cu).iterator.collect { case bus: VectorBus => bus }
 
-      vecIns.foreach{dep =>
-        if (producer.contains(dep) || isInterCU(dep)) { // Inputs from DRAM should already have FIFOs, input args don't need them
-          // Size of FIFO can't be statically predicted here (routing costs) and doesn't matter to config anyway
-          insertFIFO(cu, dep, 4096)
-        }
+        vecIns.foreach { dep =>
+          if (producer.contains(dep) || isInterCU(dep)) { // Inputs from DRAM should already have FIFOs, input args don't need them
+            // Size of FIFO can't be statically predicted here (routing costs) and doesn't matter to config anyway
+            insertFIFO(cu, dep, 4096)
+          }
         /*else if (isInterCU(dep)) {
           insertFIFO(cu, dep, 4096)
         }
@@ -71,16 +74,13 @@ trait PIRRetiming extends PIRTraversal {
             }
           }
         }*/
+        }
+
+        cu.deps ++= deps(cu).flatMap { dep =>
+          producer.get(dep)
+        } // Only use dependencies within this virtual CU
       }
-
-      cu.deps ++= deps(cu).flatMap{dep => producer.get(dep) } // Only use dependencies within this virtual CU
-    }}
-
-
-
-
-
-
+    }
     /*    val produce = producer.getOrElse(dep, )
         if (produce.isDefined) {
           lca(cu, produce.get) match {
@@ -111,27 +111,26 @@ trait PIRRetiming extends PIRTraversal {
           }
         }
       }*/
-
-
     //}}
   }
 
-  def lca(a: CU, b: CU):CU = {
-    val (lca, path1, path2) = leastCommonAncestorWithPaths(a,b,(cu:CU) => cu.parentCU)
+  def lca(a: CU, b: CU): CU = {
+    val (lca, path1, path2) =
+      leastCommonAncestorWithPaths(a, b, (cu: CU) => cu.parentCU)
     lca.get
     //var ap:Option[CU] = Some(a)
     //var bp:Option[CU] = Some(b)
     //val aps = ListBuffer[CU]()
     //val bps = ListBuffer[CU]()
     //while (!ap.isEmpty && !bp.isEmpty) {
-      //val ac = ap.get
-      //val bc = bp.get
-      //aps += ac
-      //bps += bc
-      //if (aps.contains(bc)) return bc
-      //if (bps.contains(ac)) return ac
-      //ap = ac.parentCU
-      //bp = bc.parentCU
+    //val ac = ap.get
+    //val bc = bp.get
+    //aps += ac
+    //bps += bc
+    //if (aps.contains(bc)) return bc
+    //if (bps.contains(ac)) return ac
+    //ap = ac.parentCU
+    //bp = bc.parentCU
     //}
     //throw new Exception(s"Could not find common ancesstor between $a and $b")
   }
@@ -140,12 +139,12 @@ trait PIRRetiming extends PIRTraversal {
     dbg(s"Inserting FIFO in $cu for input $bus")
     val sram = allocateFIFO(bus, depth)
     cu.srams += sram
-    cu.allStages.foreach{
-      case stage@MapStage(op, ins, outs) =>
-        stage.ins = ins.map{
-          case LocalRef(_,ScalarIn(`bus`)) => LocalRef(-1, SRAMReadReg(sram))
-          case LocalRef(_,VectorIn(`bus`)) => LocalRef(-1, SRAMReadReg(sram))
-          case ref => ref
+    cu.allStages.foreach {
+      case stage @ MapStage(op, ins, outs) =>
+        stage.ins = ins.map {
+          case LocalRef(_, ScalarIn(`bus`)) => LocalRef(-1, SRAMReadReg(sram))
+          case LocalRef(_, VectorIn(`bus`)) => LocalRef(-1, SRAMReadReg(sram))
+          case ref                          => ref
         }
       case _ =>
     }
@@ -153,8 +152,8 @@ trait PIRRetiming extends PIRTraversal {
 
   def allocateFIFO(bus: GlobalBus, depth: Int) = {
     val name = bus match {
-      case bus:ScalarBus => bus.name+"_fifo"
-      case bus:VectorBus => bus.name+"_fifo"
+      case bus: ScalarBus => bus.name + "_fifo"
+      case bus: VectorBus => bus.name + "_fifo"
     }
     val sram = CUMemory(name, depth, fresh[Int32], fresh[Int32]) //fresh[Any] don't care type
     sram.mode = FIFOMode

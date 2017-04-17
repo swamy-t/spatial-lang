@@ -9,22 +9,21 @@ trait CppGenController extends CppCodegen {
   val IR: SpatialExp
   import IR._
 
-
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case Hwblock(func,isForever) =>
+    case Hwblock(func, isForever) =>
       // Skip everything inside
       toggleEn()
       emitBlock(func)
       toggleEn()
       emit(s"time_t tstart = time(0);")
-      val memlist = if (setMems.length > 0) {s""", ${setMems.mkString(",")}"""} else ""
+      val memlist =
+        if (setMems.length > 0) { s""", ${setMems.mkString(",")}""" } else ""
       emit(s"c1->run();")
       emit(s"time_t tend = time(0);")
       emit(s"double elapsed = difftime(tend, tstart);")
-      emit(s"""std::cout << "Kernel done, test run time = " << elapsed << " ms" << std::endl;""")
+      emit(
+        s"""std::cout << "Kernel done, test run time = " << elapsed << " ms" << std::endl;""")
 
     case _ => super.emitNode(lhs, rhs)
   }
 }
-
-   

@@ -9,7 +9,6 @@ trait CppGenRange extends CppCodegen {
   val IR: SpatialExp
   import IR._
 
-
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
     case RangeForeach(start, end, step, func, i) =>
       open(src"for (int $i = $start; $i < $end; $i = $i + $step) {")
@@ -17,6 +16,6 @@ trait CppGenRange extends CppCodegen {
       close("}")
 
     case _ =>
-    	super.emitNode(lhs,rhs)
+      super.emitNode(lhs, rhs)
   }
 }

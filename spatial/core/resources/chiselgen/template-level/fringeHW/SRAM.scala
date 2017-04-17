@@ -8,7 +8,7 @@ class SRAM(val w: Int, val d: Int) extends Module {
   val addrWidth = log2Up(d)
   val io = IO(new Bundle {
     val raddr = Input(UInt(addrWidth.W))
-    val wen = Input(Bool())
+    val wen   = Input(Bool())
     val waddr = Input(UInt(addrWidth.W))
     val wdata = Input(UInt(w.W))
     val rdata = Output(UInt(w.W))
@@ -20,7 +20,7 @@ class SRAM(val w: Int, val d: Int) extends Module {
   io.rdata := 0.U
   val raddr_reg = Reg(UInt(addrWidth.W))
 
-  when (io.wen) {
+  when(io.wen) {
     mem(io.waddr) := io.wdata
   }
   raddr_reg := io.raddr
@@ -61,5 +61,3 @@ class SRAM(val w: Int, val d: Int) extends Module {
 //
 //  io.rdata := mem(raddr_reg)
 //}
-
-

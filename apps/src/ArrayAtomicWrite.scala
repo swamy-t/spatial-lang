@@ -6,11 +6,13 @@ object ArrayAtomicWrite extends SpatialApp {
 
   @virtualize
   def main() {
-    Accel { }
+    Accel {}
 
     val x = Array.empty[Array[Int]](32)
 
-    Array.tabulate(32){i => x(i) = Array.fill(16){ 0.to[Int] } }
+    Array.tabulate(32) { i =>
+      x(i) = Array.fill(16) { 0.to[Int] }
+    }
 
     x(0)(1) = 3
 

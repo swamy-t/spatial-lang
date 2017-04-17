@@ -3,7 +3,7 @@ package spatial.codegen.simgen
 import spatial.SpatialExp
 import spatial.api.RangeExp
 
-trait SimGenRange extends SimCodegen{
+trait SimGenRange extends SimCodegen {
   val IR: SpatialExp
   import IR._
 

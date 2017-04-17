@@ -21,21 +21,21 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
   override val name = "Control Signal Analyzer"
 
   // --- State
-  var level = 0
-  var controller: Option[Ctrl] = None
-  var pendingNodes: Map[Exp[_], Seq[Exp[_]]] = Map.empty
+  var level                                   = 0
+  var controller: Option[Ctrl]                = None
+  var pendingNodes: Map[Exp[_], Seq[Exp[_]]]  = Map.empty
   var unrollFactors: List[List[Const[Index]]] = Nil
 
-  var localMems: List[Exp[_]] = Nil
-  var metapipes: List[Exp[_]] = Nil
-  var streampipes: List[Exp[_]] = Nil
+  var localMems: List[Exp[_]]       = Nil
+  var metapipes: List[Exp[_]]       = Nil
+  var streampipes: List[Exp[_]]     = Nil
   var streamLoadCtrls: List[Exp[_]] = Nil // Pops
-  var streamParEnqs: List[Exp[_]] = Nil // Pops
-  var streamEnablers: List[Exp[_]] = Nil // Pops
-  var streamHolders: List[Exp[_]] = Nil // Pushes
-  var top: Option[Exp[_]] = None
+  var streamParEnqs: List[Exp[_]]   = Nil // Pops
+  var streamEnablers: List[Exp[_]]  = Nil // Pops
+  var streamHolders: List[Exp[_]]   = Nil // Pushes
+  var top: Option[Exp[_]]           = None
 
-  override protected def preprocess[S:Type](block: Block[S]) = {
+  override protected def preprocess[S: Type](block: Block[S]) = {
     localMems = Nil
     metapipes = Nil
     streamLoadCtrls = Nil
@@ -55,19 +55,21 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
     super.preprocess(block)
   }
 
-  override protected def postprocess[S:Type](block: Block[S]) = {
+  override protected def postprocess[S: Type](block: Block[S]) = {
     top match {
-      case Some(ctrl@Op(Hwblock(_,_))) =>
-      case _ => new NoTopError(block.result.ctx)
+      case Some(ctrl @ Op(Hwblock(_, _))) =>
+      case _                              => new NoTopError(block.result.ctx)
     }
     dbg("Local memories: ")
-    localMems.foreach{mem => dbg(c"  $mem")}
+    localMems.foreach { mem =>
+      dbg(c"  $mem")
+    }
     super.postprocess(block)
   }
 
   def visitCtrl(ctrl: Ctrl)(blk: => Unit): Unit = {
     level += 1
-    val prevCtrl = controller
+    val prevCtrl  = controller
     val prevReads = pendingNodes
 
     controller = Some(ctrl)
@@ -78,12 +80,14 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
     level -= 1
   }
 
-  def visitCtrl(ctrl: Ctrl, inds: Seq[Bound[Index]], cchain: Exp[CounterChain])(blk: => Unit): Unit = {
+  def visitCtrl(ctrl: Ctrl,
+                inds: Seq[Bound[Index]],
+                cchain: Exp[CounterChain])(blk: => Unit): Unit = {
     val prevUnrollFactors = unrollFactors
-    val factors = parFactorsOf(cchain)
+    val factors           = parFactorsOf(cchain)
 
     // ASSUMPTION: Currently only parallelizes by innermost loop
-    inds.zip(factors).foreach{case (i,f) => parFactorOf(i) = f }
+    inds.zip(factors).foreach { case (i, f) => parFactorOf(i) = f }
     unrollFactors = factors.lastOption.toList +: unrollFactors
 
     visitCtrl(ctrl)(blk)
@@ -94,13 +98,14 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
   /** Helper methods **/
   def appendReader(reader: Exp[_], ctrl: Ctrl) = {
     val LocalReader(reads) = reader
-    reads.foreach{case (mem, addr, en) =>
-      val access = (reader, ctrl)
+    reads.foreach {
+      case (mem, addr, en) =>
+        val access = (reader, ctrl)
 
-      if (!readersOf(mem).contains(access))
-        readersOf(mem) = access +: readersOf(mem)
+        if (!readersOf(mem).contains(access))
+          readersOf(mem) = access +: readersOf(mem)
 
-      dbg(c"Added reader $reader of $mem in $ctrl")
+        dbg(c"Added reader $reader of $mem in $ctrl")
     }
   }
 
@@ -113,14 +118,21 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
 
   def appendWriter(writer: Exp[_], ctrl: Ctrl) = {
     val LocalWriter(writes) = writer
-    writes.foreach{case (mem,value,addr,en) =>
-      writersOf(mem) = (writer,ctrl) +: writersOf(mem)      // (5)
-      writtenIn(ctrl) = mem +: writtenIn(ctrl)              // (10)
-      value.foreach{v => isAccum(mem) = isAccum(mem) || (v dependsOn mem)  }              // (6)
-      addr.foreach{is => isAccum(mem) = isAccum(mem) || is.exists(i => i dependsOn mem) } // (6)
-      en.foreach{e => isAccum(mem) = isAccum(mem) || (e dependsOn mem) }                  // (6)
+    writes.foreach {
+      case (mem, value, addr, en) =>
+        writersOf(mem) = (writer, ctrl) +: writersOf(mem) // (5)
+        writtenIn(ctrl) = mem +: writtenIn(ctrl)          // (10)
+        value.foreach { v =>
+          isAccum(mem) = isAccum(mem) || (v dependsOn mem)
+        } // (6)
+        addr.foreach { is =>
+          isAccum(mem) = isAccum(mem) || is.exists(i => i dependsOn mem)
+        } // (6)
+        en.foreach { e =>
+          isAccum(mem) = isAccum(mem) || (e dependsOn mem)
+        } // (6)
 
-      dbg(c"Added writer $writer of $mem in $ctrl")
+        dbg(c"Added writer $writer of $mem in $ctrl")
     }
   }
 
@@ -153,7 +165,6 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
     streamParEnqs ::= ctrl
   }
 
-
   def addStreamDeq(stream: Exp[_], ctrl: Exp[_]) = {
     parentOf(stream) = ctrl
     dbg(c"Registered stream enabler $stream")
@@ -173,36 +184,42 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
     childrenOf(ctrl) = childrenOf(ctrl) :+ child
   }
 
-
-  def addPendingUse(user: Exp[_], ctrl: Ctrl, pending: Seq[Exp[_]], isBlockResult: Boolean = false): Unit = {
+  def addPendingUse(user: Exp[_],
+                    ctrl: Ctrl,
+                    pending: Seq[Exp[_]],
+                    isBlockResult: Boolean = false): Unit = {
     dbg(c"Found user ${str(user)} of:")
-    pending.foreach{s => dbg(c"  ${str(s)}")}
+    pending.foreach { s =>
+      dbg(c"  ${str(s)}")
+    }
 
     // Bit of a hack: When the node being used is added as the result of a block (e.g. reduction)
     // which is used in an inner controller, the usersOf list should still see the outer controller as the user
     // rather than the inner controller. The readersOf list should see the inner controller.
-    val ctrlUser = if (isBlockResult && ctrl != null) (ctrl.node,false) else ctrl
+    val ctrlUser =
+      if (isBlockResult && ctrl != null) (ctrl.node, false) else ctrl
 
-    pending.foreach{node =>
-      usersOf(node) = (user,ctrlUser) +: usersOf(node)
+    pending.foreach { node =>
+      usersOf(node) = (user, ctrlUser) +: usersOf(node)
       if (isRegisterRead(node) && ctrl != null) appendReader(node, ctrl)
 
       // Also add stateless nodes that this node uses
       // Can't do this on the fly when the node was first reached, since the associated control was unknown
-      pendingNodes.getOrElse(node, Nil).filter(_ != node).foreach{used =>
-        usersOf(used) = (node,ctrlUser) +: usersOf(used)
+      pendingNodes.getOrElse(node, Nil).filter(_ != node).foreach { used =>
+        usersOf(used) = (node, ctrlUser) +: usersOf(used)
       }
     }
   }
 
   def checkPendingNodes(lhs: Sym[_], rhs: Op[_], ctrl: Option[Ctrl]) = {
-    val pending = rhs.inputs.flatMap{sym => pendingNodes.getOrElse(sym, Nil) }
+    val pending = rhs.inputs.flatMap { sym =>
+      pendingNodes.getOrElse(sym, Nil)
+    }
     if (pending.nonEmpty) {
       // All nodes which could potentially use a reader outside of an inner control node
       if (isStateless(lhs) && !ctrl.exists(isInnerControl)) { // Ctrl is either outer or outside Accel
         addPropagatingNode(lhs, pending)
-      }
-      else {
+      } else {
         addPendingUse(lhs, ctrl.orNull, pending)
       }
     }
@@ -210,7 +227,9 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
 
   def addPropagatingNode(node: Exp[_], pending: Seq[Exp[_]]) = {
     dbg(c"Found propagating reader ${str(node)} of:")
-    pending.foreach{s => dbg(c"  ${str(s)}")}
+    pending.foreach { s =>
+      dbg(c"  ${str(s)}")
+    }
     pendingNodes += node -> (node +: pending)
   }
 
@@ -229,21 +248,21 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
       val ctrl: Ctrl   = controller.get
       val parent: Ctrl = if (isControlNode(lhs)) (lhs, false) else ctrl
 
-      if (parent.node != lhs) parentOf(lhs) = parent.node else parentOf(lhs) = ctrl.node
+      if (parent.node != lhs) parentOf(lhs) = parent.node
+      else parentOf(lhs) = ctrl.node
 
       checkPendingNodes(lhs, rhs, Some(parent))
 
       if (isStateless(lhs) && isOuterControl(parent)) addPendingNode(lhs)
 
-      if (isAllocation(lhs)) addAllocation(lhs, parent.node)  // (1, 7)
+      if (isAllocation(lhs)) addAllocation(lhs, parent.node) // (1, 7)
       if (isStreamLoad(lhs)) addStreamLoadMem(lhs)
       if (isParEnq(lhs)) addParEnq(lhs)
       if (isStreamStageEnabler(lhs)) addStreamDeq(lhs, parent.node)
       if (isStreamStageHolder(lhs)) addStreamEnq(lhs, parent.node)
-      if (isReader(lhs)) addReader(lhs, parent)               // (4)
-      if (isWriter(lhs)) addWriter(lhs, parent)               // (5, 6, 10)
-    }
-    else {
+      if (isReader(lhs)) addReader(lhs, parent) // (4)
+      if (isWriter(lhs)) addWriter(lhs, parent) // (5, 6, 10)
+    } else {
       checkPendingNodes(lhs, rhs, None)
       if (isStateless(lhs)) addPendingNode(lhs)
 
@@ -260,25 +279,31 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
     }
   }
 
-  def addChildDependencyData(lhs: Sym[_], block: Block[_]): Unit = if (isOuterControl(lhs)) {
-    withInnerStms(availStms diff block.inputs.map(stmOf)) {
-      val children = childrenOf(lhs)
-      dbg(c"parent: $lhs")
-      val allDeps = Map(children.map { child =>
-        dbg(c"  child: $child")
-        val schedule = getCustomSchedule(availStms, List(child))
-        schedule.foreach{stm => dbg(c"    $stm")}
-        child -> schedule.flatMap(_.lhs).filter { e => children.contains(e) && e != child }
-      }: _*)
+  def addChildDependencyData(lhs: Sym[_], block: Block[_]): Unit =
+    if (isOuterControl(lhs)) {
+      withInnerStms(availStms diff block.inputs.map(stmOf)) {
+        val children = childrenOf(lhs)
+        dbg(c"parent: $lhs")
+        val allDeps = Map(children.map { child =>
+          dbg(c"  child: $child")
+          val schedule = getCustomSchedule(availStms, List(child))
+          schedule.foreach { stm =>
+            dbg(c"    $stm")
+          }
+          child -> schedule.flatMap(_.lhs).filter { e =>
+            children.contains(e) && e != child
+          }
+        }: _*)
 
-      dbg(c"dependencies: ")
-      allDeps.foreach { case (child, deps) =>
-        val fringe = deps diff deps.flatMap(allDeps)
-        ctrlDepsOf(child) = fringe.toSet
-        dbg(c"  $child ($fringe)")
+        dbg(c"dependencies: ")
+        allDeps.foreach {
+          case (child, deps) =>
+            val fringe = deps diff deps.flatMap(allDeps)
+            ctrlDepsOf(child) = fringe.toSet
+            dbg(c"  $child ($fringe)")
+        }
       }
     }
-  }
 
   override protected def visit(lhs: Sym[_], rhs: Op[_]): Unit = {
     addCommonControlData(lhs, rhs)
@@ -286,30 +311,32 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
   }
 
   protected def analyze(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case Hwblock(blk,_) =>
-      visitCtrl((lhs,false)){ visitBlock(blk) }
+    case Hwblock(blk, _) =>
+      visitCtrl((lhs, false)) { visitBlock(blk) }
       addChildDependencyData(lhs, blk)
 
-    case UnitPipe(_,blk) =>
-      visitCtrl((lhs,false)){ visitBlock(blk) }
+    case UnitPipe(_, blk) =>
+      visitCtrl((lhs, false)) { visitBlock(blk) }
       addChildDependencyData(lhs, blk)
 
-    case ParallelPipe(_,blk) =>
-      visitCtrl((lhs,false)){ visitBlock(blk) }
+    case ParallelPipe(_, blk) =>
+      visitCtrl((lhs, false)) { visitBlock(blk) }
       addChildDependencyData(lhs, blk)
 
     case SwitchCase(cond, blk) =>
-      visitCtrl((lhs,false)){ visitBlock(blk) }
+      visitCtrl((lhs, false)) { visitBlock(blk) }
       addChildDependencyData(lhs, blk)
       addPropagatingNode(lhs, Seq(blk.result))
 
-    case Switch(blk,cases) =>
-      visitCtrl((lhs,false)){ visitBlock(blk) }
+    case Switch(blk, cases) =>
+      visitCtrl((lhs, false)) { visitBlock(blk) }
       addChildDependencyData(lhs, blk)
-      addPropagatingNode(lhs, blockContents(blk).flatMap(_.lhs).filter(pendingNodes contains _))
+      addPropagatingNode(
+        lhs,
+        blockContents(blk).flatMap(_.lhs).filter(pendingNodes contains _))
 
-    case StateMachine(_,_,notDone,action,nextState,_) =>
-      visitCtrl((lhs,false)){
+    case StateMachine(_, _, notDone, action, nextState, _) =>
+      visitCtrl((lhs, false)) {
         visitBlock(notDone)
         visitBlock(action)
         visitBlock(nextState)
@@ -318,21 +345,24 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
       addChildDependencyData(lhs, action)
       addChildDependencyData(lhs, nextState)
 
-    case OpForeach(cchain,func,iters) =>
-      visitCtrl((lhs,false),iters,cchain){ visitBlock(func) }
+    case OpForeach(cchain, func, iters) =>
+      visitCtrl((lhs, false), iters, cchain) { visitBlock(func) }
       addChildDependencyData(lhs, func)
 
-    case OpReduce(cchain,accum,map,ld,reduce,store,_,_,rV,iters) =>
-      visitCtrl((lhs,false), iters, cchain){
+    case OpReduce(cchain, accum, map, ld, reduce, store, _, _, rV, iters) =>
+      visitCtrl((lhs, false), iters, cchain) {
         visitBlock(map)
 
         // Handle the one case where we allow scalar communication between blocks
-        pendingNodes.get(map.result).foreach{nodes =>
-          addPendingUse(lhs, (lhs,isOuterControl(lhs)), nodes, isBlockResult = true)
+        pendingNodes.get(map.result).foreach { nodes =>
+          addPendingUse(lhs,
+                        (lhs, isOuterControl(lhs)),
+                        nodes,
+                        isBlockResult = true)
         }
       }
 
-      visitCtrl((lhs,true)) {
+      visitCtrl((lhs, true)) {
         visitBlock(ld)
         visitBlock(reduce)
         visitBlock(store)
@@ -343,11 +373,23 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
       addChildDependencyData(lhs, map)
       isInnerAccum(accum) = isInnerControl(lhs)
 
-    case OpMemReduce(cchainMap,cchainRed,accum,map,ldRes,ldAcc,reduce,store,_,_,rV,itersMap,itersRed) =>
-      visitCtrl((lhs,false), itersMap, cchainMap) {
+    case OpMemReduce(cchainMap,
+                     cchainRed,
+                     accum,
+                     map,
+                     ldRes,
+                     ldAcc,
+                     reduce,
+                     store,
+                     _,
+                     _,
+                     rV,
+                     itersMap,
+                     itersRed) =>
+      visitCtrl((lhs, false), itersMap, cchainMap) {
         visitBlock(map)
       }
-      visitCtrl((lhs,true), itersRed, cchainRed) {
+      visitCtrl((lhs, true), itersRed, cchainRed) {
         visitBlock(ldAcc)
         visitBlock(ldRes)
         visitBlock(reduce)
@@ -359,8 +401,10 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
       addChildDependencyData(lhs, map)
       isInnerAccum(accum) = isInnerControl(lhs)
 
-    case e: DenseTransfer[_,_] =>
-      e.iters.foreach{i => parFactorOf(i) = int32(1) }
+    case e: DenseTransfer[_, _] =>
+      e.iters.foreach { i =>
+        parFactorOf(i) = int32(1)
+      }
       parFactorOf(e.iters.last) = e.p
 
     case e: SparseTransfer[_] =>
@@ -370,4 +414,3 @@ trait ControlSignalAnalyzer extends SpatialTraversal {
   }
 
 }
-

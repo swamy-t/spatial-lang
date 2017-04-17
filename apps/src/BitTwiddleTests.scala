@@ -65,8 +65,8 @@ object BitSelects extends SpatialApp {
 object TwiddlingWithStructs extends SpatialApp {
   import IR._
 
-  type UInt8 = FixPt[FALSE,_8,_0]
-  type SInt8 = FixPt[TRUE,_8,_0]
+  type UInt8 = FixPt[FALSE, _8, _0]
+  type SInt8 = FixPt[TRUE, _8, _0]
 
   @struct class UBytes(a: UInt8, b: UInt8, c: UInt8, d: UInt8)
   @struct class SBytes(a: SInt8, b: SInt8, c: SInt8, d: SInt8)

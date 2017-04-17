@@ -4,35 +4,35 @@ import chisel3._
 import chisel3.util._
 
 /**
- * Counter: 1-dimensional counter. Counts upto 'max', each time incrementing
- * by 'stride', beginning at zero.
- * @param w: Word width
- */
+  * Counter: 1-dimensional counter. Counts upto 'max', each time incrementing
+  * by 'stride', beginning at zero.
+  * @param w: Word width
+  */
 class Counter(val w: Int) extends Module {
   val io = IO(new Bundle {
     val max      = Input(UInt(w.W))
     val stride   = Input(UInt(w.W))
     val out      = Output(UInt(w.W))
     val next     = Output(UInt(w.W))
-    val reset  = Input(Bool())
-    val enable = Input(Bool())
+    val reset    = Input(Bool())
+    val enable   = Input(Bool())
     val saturate = Input(Bool())
-    val done   = Output(Bool())
+    val done     = Output(Bool())
   })
 
 //  val reg = Module(new FF(w))
-  val reg = Module(new FF(w))
+  val reg  = Module(new FF(w))
   val init = 0.U(w.W)
   reg.io.init := init
   reg.io.enable := io.reset | io.enable
 
-  val count = Cat(0.U(1.W), reg.io.out)
+  val count  = Cat(0.U(1.W), reg.io.out)
   val newval = count + io.stride
-  val isMax = newval >= io.max
-  val next = Mux(isMax, Mux(io.saturate, count, init), newval)
-  when (io.reset) {
+  val isMax  = newval >= io.max
+  val next   = Mux(isMax, Mux(io.saturate, count, init), newval)
+  when(io.reset) {
     reg.io.in := init
-  } .otherwise {
+  }.otherwise {
     reg.io.in := next
   }
 
@@ -46,10 +46,10 @@ class CounterReg(val w: Int) extends Module {
     val max      = Input(UInt(w.W))
     val stride   = Input(UInt(w.W))
     val out      = Output(UInt(w.W))
-    val reset = Input(Bool())
-    val enable = Input(Bool())
+    val reset    = Input(Bool())
+    val enable   = Input(Bool())
     val saturate = Input(Bool())
-    val done   = Output(Bool())
+    val done     = Output(Bool())
   })
 
   // Register the inputs
@@ -97,6 +97,3 @@ class CounterReg(val w: Int) extends Module {
   doneReg.io.in := counter.io.done
   io.done := doneReg.io.out
 }
-
-
-

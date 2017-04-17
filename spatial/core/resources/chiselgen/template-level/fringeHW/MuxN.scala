@@ -48,7 +48,9 @@ class MuxNReg(val numInputs: Int, w: Int) extends Module {
   val sel = ffsel.io.out
 
   val mux = Module(new MuxN(numInputs, w))
-  mux.io.ins := Vec.tabulate(numInputs) { i => ffins(i).io.out }
+  mux.io.ins := Vec.tabulate(numInputs) { i =>
+    ffins(i).io.out
+  }
   mux.io.sel := sel
 
   // Register the output
@@ -57,4 +59,3 @@ class MuxNReg(val numInputs: Int, w: Int) extends Module {
   ff.io.in := mux.io.out
   io.out := ff.io.out
 }
-

@@ -9,11 +9,12 @@ trait SwitchTransformer extends ForwardTransformer with SpatialTraversal {
   import IR._
   override val name = "Switch Transformer"
 
-  var inAccel = false
+  var inAccel                            = false
   var controlStyle: Option[ControlStyle] = None
   var controlLevel: Option[ControlLevel] = None
 
-  def create_case[T:Type](cond: Exp[Bool], body: => Exp[T])(implicit ctx: SrcCtx) = () => {
+  def create_case[T: Type](cond: Exp[Bool], body: => Exp[T])(
+      implicit ctx: SrcCtx) = () => {
     val c = op_case(cond, body)
     dbg(c"  ${str(c)}")
     styleOf(c) = controlStyle.getOrElse(InnerPipe)
@@ -21,19 +22,27 @@ trait SwitchTransformer extends ForwardTransformer with SpatialTraversal {
     c
   }
 
-  def extractSwitches[T:Type](elsep: Block[T], precCond: Exp[Bool], cases: Seq[() => Exp[T]])(implicit ctx: SrcCtx): Seq[() => Exp[T]] = {
+  def extractSwitches[T: Type](
+      elsep: Block[T],
+      precCond: Exp[Bool],
+      cases: Seq[() => Exp[T]])(implicit ctx: SrcCtx): Seq[() => Exp[T]] = {
     val contents = blockContents(elsep)
     elsep.result match {
       // If all operations preceding the IfThenElse are primitives, just move them outside
-      case Op(IfThenElse(cond,then2,else2)) if contents.drop(1).forall{stm => isPrimitiveNode(stm.lhs.head) } =>
-        visitStms(contents.drop(1))  // Mirror all but the last symbol (will now be outside the switch - this is deliberate)
+      case Op(IfThenElse(cond, then2, else2)) if contents.drop(1).forall {
+            stm =>
+              isPrimitiveNode(stm.lhs.head)
+          } =>
+        visitStms(contents.drop(1)) // Mirror all but the last symbol (will now be outside the switch - this is deliberate)
 
-        val cond2 = f(cond)
+        val cond2    = f(cond)
         val caseCond = bool_and(cond2, precCond)
         val elseCond = bool_and(bool_not(cond2), precCond)
 
         val scase = create_case(caseCond, f(then2))
-        extractSwitches[T](else2.asInstanceOf[Block[T]], elseCond, cases :+ scase)
+        extractSwitches[T](else2.asInstanceOf[Block[T]],
+                           elseCond,
+                           cases :+ scase)
 
       case _ =>
         val default = create_case(precCond, f(elsep))
@@ -41,8 +50,9 @@ trait SwitchTransformer extends ForwardTransformer with SpatialTraversal {
     }
   }
 
-  override def transform[T:Type](lhs: Sym[T], rhs: Op[T])(implicit ctx: SrcCtx): Exp[T] = rhs match {
-    case Hwblock(func,_) =>
+  override def transform[T: Type](lhs: Sym[T], rhs: Op[T])(
+      implicit ctx: SrcCtx): Exp[T] = rhs match {
+    case Hwblock(func, _) =>
       inAccel = true
       controlStyle = styleOf.get(lhs)
       controlLevel = levelOf.get(lhs)
@@ -55,16 +65,16 @@ trait SwitchTransformer extends ForwardTransformer with SpatialTraversal {
       val prevLevel = controlLevel
       controlStyle = styleOf.get(lhs)
       controlLevel = levelOf.get(lhs)
-      val lhs2 = super.transform(lhs,rhs)
+      val lhs2 = super.transform(lhs, rhs)
       controlStyle = prevStyle
       controlLevel = prevLevel
       lhs2
 
-    case op @ IfThenElse(cond,thenp,elsep) if inAccel =>
-      val cond2 = f(cond)
+    case op @ IfThenElse(cond, thenp, elsep) if inAccel =>
+      val cond2    = f(cond)
       val elseCond = bool_not(cond2)
-      val scase = create_case(cond2, f(thenp))
-      val cases = extractSwitches(elsep, elseCond, Seq(scase))
+      val scase    = create_case(cond2, f(thenp))
+      val cases    = extractSwitches(elsep, elseCond, Seq(scase))
 
       dbg(c"Created case symbols: ")
       val switch = create_switch(cases)
@@ -75,9 +85,7 @@ trait SwitchTransformer extends ForwardTransformer with SpatialTraversal {
 
       switch
 
-
     case _ => super.transform(lhs, rhs)
   }
-
 
 }

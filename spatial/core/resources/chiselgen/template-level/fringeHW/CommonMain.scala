@@ -5,17 +5,20 @@ package fringe
 import chisel3.core.Module
 import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
 
-
-abstract class ArgsTester[+T <: Module](c: T)(implicit args: Array[String]) extends PeekPokeTester(c) {
-  def printFail(msg: String) = println(Console.BLACK + Console.RED_B + s"FAIL: $msg" + Console.RESET)
-  def printPass(msg: String) = println(Console.BLACK + Console.GREEN_B + s"PASS: $msg" + Console.RESET)
+abstract class ArgsTester[+T <: Module](c: T)(implicit args: Array[String])
+    extends PeekPokeTester(c) {
+  def printFail(msg: String) =
+    println(Console.BLACK + Console.RED_B + s"FAIL: $msg" + Console.RESET)
+  def printPass(msg: String) =
+    println(Console.BLACK + Console.GREEN_B + s"PASS: $msg" + Console.RESET)
 }
 
 trait CommonMain {
+
   /**
-   * 'args' variable that holds commandline arguments
-   * TODO: Is using a var the best way to handle this?
-   */
+    * 'args' variable that holds commandline arguments
+    * TODO: Is using a var the best way to handle this?
+    */
   implicit var args: Array[String] = _
   case class SplitArgs(chiselArgs: Array[String], testArgs: Array[String])
 
@@ -24,11 +27,11 @@ trait CommonMain {
   def tester: DUTType => ArgsTester[DUTType]
 
   def supportedTarget(t: String) = t match {
-    case "aws" => true
-    case "zynq" => true
+    case "aws"       => true
+    case "zynq"      => true
     case "verilator" => true
-    case "vcs" => true
-    case _ => false
+    case "vcs"       => true
+    case _           => false
   }
 
   def target = if (args.size > 0) args(0) else "verilator"
@@ -40,7 +43,8 @@ trait CommonMain {
     } else {
       (args, Array[String]())
     }
-    val actualChiselArgs = if (chiselArgs.size == 0) Array("--help") else chiselArgs
+    val actualChiselArgs =
+      if (chiselArgs.size == 0) Array("--help") else chiselArgs
     val testArgs = otherArgs.drop(1)
     SplitArgs(actualChiselArgs, testArgs)
   }
@@ -49,13 +53,16 @@ trait CommonMain {
     val splitArgs = separateChiselArgs(args)
     this.args = splitArgs.testArgs
 
-    Predef.assert(supportedTarget(target), s"ERROR: Unsupported Fringe target '$target'")
+    Predef.assert(supportedTarget(target),
+                  s"ERROR: Unsupported Fringe target '$target'")
 
     if (splitArgs.chiselArgs.contains("--test-command")) {
-      val cmd = splitArgs.chiselArgs(splitArgs.chiselArgs.indexOf("--test-command")+1)
+      val cmd = splitArgs.chiselArgs(
+        splitArgs.chiselArgs.indexOf("--test-command") + 1)
       Driver.run(dut, cmd)(tester)
     } else if (splitArgs.chiselArgs.contains("--verilog")) {
-      chisel3.Driver.execute(Array[String]("--target-dir", s"verilog-${target}"), dut)
+      chisel3.Driver
+        .execute(Array[String]("--target-dir", s"verilog-${target}"), dut)
     } else {
       Driver.execute(splitArgs.chiselArgs, dut)(tester)
     }

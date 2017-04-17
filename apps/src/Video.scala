@@ -12,23 +12,22 @@ object Video extends SpatialApp {
   def main() {
     type T = Avalon
 
-    val frameRows = 64
-    val frameCols = 64
+    val frameRows    = 64
+    val frameCols    = 64
     val onboardVideo = target.VideoCamera
-    val mem = DRAM[T](frameRows, frameCols)
-    val conduit = StreamIn[T](onboardVideo)
+    val mem          = DRAM[T](frameRows, frameCols)
+    val conduit      = StreamIn[T](onboardVideo)
     // val avalon = StreamOut[T](onboardVideo)
 
     Accel {
       Stream(*, 64 by 1) { (_, j) =>
         val streamInterface = FIFO[T](64)
-        val onchipSram = SRAM[T](64)
+        val onchipSram      = SRAM[T](64)
         Decoder(conduit, streamInterface) // type = stream child. Pops from conduit and pushes to self. Plop in altera_up_avalon_video_decoder
         DMA(streamInterface, onchipSram)
 
       }
     }
-
 
     // // Raw Spatial streaming pipes
     // Accel {
@@ -59,7 +58,6 @@ object Video extends SpatialApp {
         }
       }
     }*/
-
 
     AXI_Master_Slave() // Plop in ARM code
   }

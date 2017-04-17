@@ -16,10 +16,10 @@ trait SpatialTestIR extends SpatialIR with RunnerCore { self =>
 }
 
 trait SpatialTest extends SpatialApp {
-  override val IR: SpatialTestIR = new SpatialTestIR { def target = spatial.targets.DefaultTarget }
+  override val IR: SpatialTestIR = new SpatialTestIR {
+    def target = spatial.targets.DefaultTarget
+  }
 }
-
-
 
 class SpatialTests extends FlatSpec with Matchers with Exceptions {
   val noargs = Array[String]()
@@ -53,8 +53,8 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
 
       Accel {
         val reg = Reg[Int](0)
-        val x = reg + in.value
-        val y = in.value - reg
+        val x   = reg + in.value
+        val y   = in.value - reg
         println(x)
         println(y)
       }
@@ -91,14 +91,17 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
     }
   }
 
-
   object ReduceTest extends SpatialTest {
     import IR._
     @virtualize
     def main() {
       Accel {
         val sram = SRAM[Int](1, 16)
-        val sum = Reduce(0)(16 by 1) { i => sram(0, i) } { (a, b) => a + b }
+        val sum = Reduce(0)(16 by 1) { i =>
+          sram(0, i)
+        } { (a, b) =>
+          a + b
+        }
         println(sum.value)
       }
     }
@@ -110,8 +113,12 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
     def main() {
       Accel {
         val product = Reg[Int](1)
-        Reduce(product)(16 by 1) { i => i } {_ * _}
-        val sum2 = Reduce(0)(0 :: 1 :: 16 par 2) { i => i } {_ + _}
+        Reduce(product)(16 by 1) { i =>
+          i
+        } { _ * _ }
+        val sum2 = Reduce(0)(0 :: 1 :: 16 par 2) { i =>
+          i
+        } { _ + _ }
         println(product.value)
         println(sum2.value)
       }
@@ -126,9 +133,13 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
         val accum = SRAM[Int](32, 32)
         MemReduce(accum)(0 until 32) { i =>
           val inner = SRAM[Int](32, 32)
-          Foreach(0 until 32, 0 until 32) { (j, k) => inner(j, k) = j + k }
+          Foreach(0 until 32, 0 until 32) { (j, k) =>
+            inner(j, k) = j + k
+          }
           inner
-        } { (a, b) => a + b }
+        } { (a, b) =>
+          a + b
+        }
 
         println(accum(0, 0))
       }
@@ -140,10 +151,14 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
 
     @virtualize
     def main() {
-      val array = Array.tabulate(32){i => random[Int](10) }
-      val matrix = (0::4,0::10){(i,j) => random[Int](10) }
+      val array = Array.tabulate(32) { i =>
+        random[Int](10)
+      }
+      val matrix = (0 :: 4, 0 :: 10) { (i, j) =>
+        random[Int](10)
+      }
 
-      Accel { }
+      Accel {}
 
       printArray(array)
       printMatrix(matrix)
@@ -191,7 +206,9 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
 
     @virtualize
     def main() {
-      val arr = args.map { a => a.to[Int] }
+      val arr = args.map { a =>
+        a.to[Int]
+      }
       val x = DRAM[Int](arr.length)
       val N = ArgIn[Int]
       setArg(N, args.length)
@@ -201,8 +218,10 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
         out := Reduce(0)(N by 5) { i =>
           val sram = SRAM[Int](12)
           sram load x(i :: i + 5)
-          Reduce(0)(5 by 1) { j => sram(j) } {_ + _}
-        } {_ + _}
+          Reduce(0)(5 by 1) { j =>
+            sram(j)
+          } { _ + _ }
+        } { _ + _ }
       }
       println(getArg(out))
     }
@@ -217,6 +236,6 @@ class SpatialTests extends FlatSpec with Matchers with Exceptions {
   "MemReduceTest" should "compile" in { MemReduceTest.main(noargs) }
   "UtilTest" should "compile" in { UtilTest.main(noargs) }
   // a [TestBenchFailed] should be thrownBy { NDScatterTest.main(noargs) }
-  a [TestBenchFailed] should be thrownBy { UntransferredValueTest.main(noargs) }
-  a [TestBenchFailed] should be thrownBy { DRAMSizeTest.main(noargs) }
+  a[TestBenchFailed] should be thrownBy { UntransferredValueTest.main(noargs) }
+  a[TestBenchFailed] should be thrownBy { DRAMSizeTest.main(noargs) }
 }

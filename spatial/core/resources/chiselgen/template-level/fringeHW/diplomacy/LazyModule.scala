@@ -3,44 +3,55 @@
 package diplomacy
 
 import Chisel._
-import chisel3.internal.sourceinfo.{SourceInfo, SourceLine, UnlocatableSourceInfo}
+import chisel3.internal.sourceinfo.{
+  SourceInfo,
+  SourceLine,
+  UnlocatableSourceInfo
+}
 
-abstract class LazyModule
-{
-  protected[diplomacy] var bindings = List[() => Unit]()
-  protected[diplomacy] var children = List[LazyModule]()
-  protected[diplomacy] var nodes = List[BaseNode]()
+abstract class LazyModule {
+  protected[diplomacy] var bindings         = List[() => Unit]()
+  protected[diplomacy] var children         = List[LazyModule]()
+  protected[diplomacy] var nodes            = List[BaseNode]()
   protected[diplomacy] var info: SourceInfo = UnlocatableSourceInfo
-  protected[diplomacy] val parent = LazyModule.stack.headOption
+  protected[diplomacy] val parent           = LazyModule.stack.headOption
 
   LazyModule.stack = this :: LazyModule.stack
   parent.foreach(p => p.children = this :: p.children)
 
   lazy val className = getClass.getName.split('.').last
   lazy val valName = parent.flatMap { p =>
-    p.getClass.getMethods.filter { m =>
-      m.getParameterTypes.isEmpty &&
-      !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
-      classOf[LazyModule].isAssignableFrom(m.getReturnType) &&
-      (m.invoke(p) eq this)
-    }.headOption.map(_.getName)
+    p.getClass.getMethods
+      .filter { m =>
+        m.getParameterTypes.isEmpty &&
+        !java.lang.reflect.Modifier.isStatic(m.getModifiers) &&
+        classOf[LazyModule].isAssignableFrom(m.getReturnType) &&
+        (m.invoke(p) eq this)
+      }
+      .headOption
+      .map(_.getName)
   }
-  lazy val outerName = if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
+  lazy val outerName =
+    if (nodes.size != 1) None else nodes(0).gco.flatMap(_.lazyModule.valName)
 
-  def moduleName = className + valName.orElse(outerName).map("_" + _).getOrElse("")
-  def instanceName = valName.getOrElse(outerName.map(_ + "_").getOrElse("") + className)
+  def moduleName =
+    className + valName.orElse(outerName).map("_" + _).getOrElse("")
+  def instanceName =
+    valName.getOrElse(outerName.map(_ + "_").getOrElse("") + className)
   def name = valName.getOrElse(className)
   def line = sourceLine(info)
 
   def module: LazyModuleImp
 
   protected[diplomacy] def instantiate() = {
-    children.reverse.foreach { c => 
+    children.reverse.foreach { c =>
       // !!! fix chisel3 so we can pass the desired sourceInfo
       // implicit val sourceInfo = c.module.outer.info
       Module(c.module)
     }
-    bindings.reverse.foreach { f => f () }
+    bindings.reverse.foreach { f =>
+      f()
+    }
   }
 
   def omitGraphML = nodes.isEmpty && children.isEmpty
@@ -58,7 +69,9 @@ abstract class LazyModule
     buf.toString
   }
 
-  private val index = { LazyModule.index = LazyModule.index + 1; LazyModule.index }
+  private val index = {
+    LazyModule.index = LazyModule.index + 1; LazyModule.index
+  }
 
   private def nodesGraphML(buf: StringBuilder, pad: String) {
     buf ++= s"""${pad}<node id=\"${index}\">\n"""
@@ -67,42 +80,52 @@ abstract class LazyModule
     nodes.filter(!_.omitGraphML).foreach { n =>
       buf ++= s"""${pad}    <node id=\"${index}::${n.index}\"/>\n"""
     }
-    children.filter(!_.omitGraphML).foreach { _.nodesGraphML(buf, pad + "    ") }
+    children.filter(!_.omitGraphML).foreach {
+      _.nodesGraphML(buf, pad + "    ")
+    }
     buf ++= s"""${pad}  </graph>\n"""
     buf ++= s"""${pad}</node>\n"""
   }
   private def edgesGraphML(buf: StringBuilder, pad: String) {
-    nodes.filter(!_.omitGraphML) foreach { n => n.outputs.filter(!_.omitGraphML).foreach { o =>
-      buf ++= pad
-      buf ++= "<edge"
-      buf ++= s""" source=\"${index}::${n.index}\""""
-      buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"><data key=\"e\"><y:PolyLineEdge><y:Arrows source=\"none\" target=\"standard\"/><y:LineStyle color=\"${o.colour}\" type=\"line\" width=\"1.0\"/></y:PolyLineEdge></data></edge>\n"""
-    } }
-    children.filter(!_.omitGraphML).foreach { c => c.edgesGraphML(buf, pad) }
+    nodes.filter(!_.omitGraphML) foreach { n =>
+      n.outputs.filter(!_.omitGraphML).foreach { o =>
+        buf ++= pad
+        buf ++= "<edge"
+        buf ++= s""" source=\"${index}::${n.index}\""""
+        buf ++= s""" target=\"${o.lazyModule.index}::${o.index}\"><data key=\"e\"><y:PolyLineEdge><y:Arrows source=\"none\" target=\"standard\"/><y:LineStyle color=\"${o.colour}\" type=\"line\" width=\"1.0\"/></y:PolyLineEdge></data></edge>\n"""
+      }
+    }
+    children.filter(!_.omitGraphML).foreach { c =>
+      c.edgesGraphML(buf, pad)
+    }
   }
 }
 
-object LazyModule
-{
+object LazyModule {
   protected[diplomacy] var stack = List[LazyModule]()
-  private var index = 0
+  private var index              = 0
 
   def apply[T <: LazyModule](bc: T)(implicit sourceInfo: SourceInfo): T = {
     // Make sure the user put LazyModule around modules in the correct order
     // If this require fails, probably some grandchild was missing a LazyModule
     // ... or you applied LazyModule twice
-    require (!stack.isEmpty, s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}")
-    require (stack.head eq bc, s"LazyModule() applied to ${bc.name} before ${stack.head.name} ${sourceLine(sourceInfo)}")
+    require(
+      !stack.isEmpty,
+      s"LazyModule() applied to ${bc.name} twice ${sourceLine(sourceInfo)}")
+    require(
+      stack.head eq bc,
+      s"LazyModule() applied to ${bc.name} before ${stack.head.name} ${sourceLine(sourceInfo)}")
     stack = stack.tail
     bc.info = sourceInfo
     bc
   }
 }
 
-abstract class LazyModuleImp(outer: LazyModule) extends Module
-{
+abstract class LazyModuleImp(outer: LazyModule) extends Module {
   // .module had better not be accessed while LazyModules are still being built!
-  require (LazyModule.stack.isEmpty, s"${outer.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
+  require(
+    LazyModule.stack.isEmpty,
+    s"${outer.name}.module was constructed before LazyModule() was run on ${LazyModule.stack.head.name}")
 
   override def desiredName = outer.moduleName
   suggestName(outer.instanceName)

@@ -7,17 +7,17 @@ import java.io.PrintWriter
 import scala.io.Source
 
 class LineBufferTests(c: LineBuffer) extends PeekPokeTester(c) {
-    
+
   poke(c.io.reset, 1)
   step(1)
   poke(c.io.reset, 0)
 
   println("Flush buffer")
-  for (i <- 0 until c.num_lines*c.line_size + 1 by c.col_wPar) {
+  for (i <- 0 until c.num_lines * c.line_size + 1 by c.col_wPar) {
     poke(c.io.sEn(0), 1)
     poke(c.io.w_en, 1)
     for (j <- 0 until c.col_wPar) {
-      poke(c.io.data_in(j), 0)      
+      poke(c.io.data_in(j), 0)
     }
     step(1)
     if (i % c.line_size == 0) {
@@ -41,7 +41,8 @@ class LineBufferTests(c: LineBuffer) extends PeekPokeTester(c) {
         poke(c.io.sEn(0), 1)
         poke(c.io.w_en, 1)
         for (j <- 0 until c.col_wPar) {
-          poke(c.io.data_in(j), 100*(iter*c.extra_rows_to_buffer+k) + i + j)      
+          poke(c.io.data_in(j),
+               100 * (iter * c.extra_rows_to_buffer + k) + i + j)
         }
         step(1)
       }
@@ -62,16 +63,19 @@ class LineBufferTests(c: LineBuffer) extends PeekPokeTester(c) {
         poke(c.io.col_addr(j), col + j)
       }
       for (row <- 0 until c.num_lines) {
-        val init = if (iter*c.extra_rows_to_buffer - (c.num_lines - c.extra_rows_to_buffer - row) < 0) 0 else 1
-        val scalar = iter*c.extra_rows_to_buffer - (c.num_lines - c.extra_rows_to_buffer - row)
+        val init =
+          if (iter * c.extra_rows_to_buffer - (c.num_lines - c.extra_rows_to_buffer - row) < 0)
+            0
+          else 1
+        val scalar = iter * c.extra_rows_to_buffer - (c.num_lines - c.extra_rows_to_buffer - row)
         for (j <- 0 until c.col_rPar) {
-          val r = peek(c.io.data_out(row*c.col_rPar + j))
-          val g = init*(scalar*100 + col + j)
-          expect(c.io.data_out(row*c.col_rPar+j), g)
+          val r = peek(c.io.data_out(row * c.col_rPar + j))
+          val g = init * (scalar * 100 + col + j)
+          expect(c.io.data_out(row * c.col_rPar + j), g)
           rows_concat(row) ++= r.toString
-          rows_concat(row) ++= " "        
+          rows_concat(row) ++= " "
           gold_concat(row) ++= g.toString
-          gold_concat(row) ++= " "        
+          gold_concat(row) ++= " "
         }
       }
       step(1)
@@ -87,5 +91,4 @@ class LineBufferTests(c: LineBuffer) extends PeekPokeTester(c) {
 
   }
 
-  
 }

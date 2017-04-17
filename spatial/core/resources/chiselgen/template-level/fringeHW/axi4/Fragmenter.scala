@@ -51,7 +51,7 @@
 //      require (!s.supportsWrite || s.supportsWrite.contains(beatBytes))
 //    }
 //
-//    /* We need to decompose a request into 
+//    /* We need to decompose a request into
 //     *   FIXED => each beat is a new request
 //     *   WRAP/INCR => take xfr up to next power of two, capped by max size of target
 //     *

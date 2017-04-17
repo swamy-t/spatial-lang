@@ -6,25 +6,27 @@ import chisel3.util._
 import templates.Utils.log2Up
 
 class FIFOArbiterWidthConvert(
-  val win: List[Int],
-  val vin: List[Int],
-  val wout: Int,
-  val vout: Int,
-  val d: Int
+    val win: List[Int],
+    val vin: List[Int],
+    val wout: Int,
+    val vout: Int,
+    val d: Int
 ) extends Module {
 
-  val tagWidth = log2Up(numStreams)
+  val tagWidth   = log2Up(numStreams)
   val numStreams = win.size
 
   val io = IO(new Bundle {
-    val enq = Input(HVec.tabulate(numStreams) { i =>  Vec(vin(i), Bits(win(i).W))})
-    val enqVld = Input(Vec(numStreams, Bool()))
-    val full = Output(Vec(numStreams, Bool()))
-    val deq = Output(Vec(vout, Bits(wout.W)))
-    val deqVld = Input(Bool())
-    val empty = Output(Bool())
+    val enq = Input(HVec.tabulate(numStreams) { i =>
+      Vec(vin(i), Bits(win(i).W))
+    })
+    val enqVld   = Input(Vec(numStreams, Bool()))
+    val full     = Output(Vec(numStreams, Bool()))
+    val deq      = Output(Vec(vout, Bits(wout.W)))
+    val deqVld   = Input(Bool())
+    val empty    = Output(Bool())
     val forceTag = Flipped(Decoupled(UInt(tagWidth.W)))
-    val tag = Output(UInt(tagWidth.W))
+    val tag      = Output(UInt(tagWidth.W))
   })
 
   val tagFF = Module(new FF(tagWidth))
@@ -42,14 +44,17 @@ class FIFOArbiterWidthConvert(
       m
     }
 
-    val enqSomething = io.enqVld.reduce{_|_}
-    val allFifoEmpty = fifos.map { _.io.empty }.reduce{_&_}
+    val enqSomething = io.enqVld.reduce { _ | _ }
+    val allFifoEmpty = fifos.map { _.io.empty }.reduce { _ & _ }
     tagFF.io.enable := io.deqVld | (allFifoEmpty & enqSomething)
 
-    val fifoValids = Mux(allFifoEmpty,
+    val fifoValids = Mux(
+      allFifoEmpty,
       io.enqVld,
       Vec(List.tabulate(numStreams) { i =>
-        ~((~io.enqVld(i) & fifos(i).io.empty) | ((tag === i.U) & io.deqVld & ~io.enqVld(i) & fifos(i).io.almostEmpty))
+        ~((~io
+          .enqVld(i) & fifos(i).io.empty) | ((tag === i.U) & io.deqVld & ~io
+          .enqVld(i) & fifos(i).io.almostEmpty))
       })
     )
 
@@ -58,19 +63,24 @@ class FIFOArbiterWidthConvert(
     tagFF.io.in := activeFifo
 
     val outMux = Module(new MuxVec(numStreams, vout, wout))
-    outMux.io.ins := Vec(fifos.map {e => e.io.deq})
+    outMux.io.ins := Vec(fifos.map { e =>
+      e.io.deq
+    })
     outMux.io.sel := tag
 
     io.tag := tag
     io.deq := outMux.io.out
-    val empties = Array.tabulate(numStreams) { i => (i.U -> fifos(i).io.empty) }
+    val empties = Array.tabulate(numStreams) { i =>
+      (i.U -> fifos(i).io.empty)
+    }
     io.empty := MuxLookup(tag, false.B, empties)
     //fifos.map {e => e.io.empty}.reduce{_&_}  // emptyMux.io.out
   } else { // Arbiter does nothing if there are no memstreams
     io.tag := 0.U(tagWidth.W)
-    io.deq := Vec(List.tabulate(vout) { i => 0.U(wout.W) })
+    io.deq := Vec(List.tabulate(vout) { i =>
+      0.U(wout.W)
+    })
     io.empty := true.B
   }
 
 }
-

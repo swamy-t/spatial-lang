@@ -6,9 +6,11 @@ import org.virtualized._
 
 trait StagedUtilApi extends StagedUtilExp { this: SpatialApi =>
   @virtualize
-  @api def printArray[T:Meta](array: Array[T], header: String = ""): Void = {
+  @api def printArray[T: Meta](array: Array[T], header: String = ""): Void = {
     println(header)
-    (0 until array.length) foreach { i => print(array(i).toString + " ") }
+    (0 until array.length) foreach { i =>
+      print(array(i).toString + " ")
+    }
     println("")
   }
 
@@ -25,4 +27,5 @@ trait StagedUtilApi extends StagedUtilExp { this: SpatialApi =>
 
 }
 
-trait StagedUtilExp { this: SpatialExp => }
+trait StagedUtilExp { this: SpatialExp =>
+}

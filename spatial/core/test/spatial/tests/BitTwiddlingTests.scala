@@ -4,7 +4,6 @@ import spatial.SpatialConfig
 import org.scalatest.{FlatSpec, Matchers}
 import org.virtualized._
 
-
 object BitSelects extends SpatialTest {
   import IR._
 
@@ -30,26 +29,26 @@ object BitSelects extends SpatialTest {
 object UserVectors extends SpatialTest {
   import IR._
 
-  type Q4 = FixPt[FALSE,_4,_0]
+  type Q4 = FixPt[FALSE, _4, _0]
 
   @virtualize
   def main() {
     Accel {
-      val A = 10.to[Q4]
-      val B = 11.to[Q4]
-      val C = 12.to[Q4]
-      val vL = Vector.ZeroLast(A, B, C)
-      val bitsL = vL.as12b
-      val sliceL = bitsL(7::0) // bits from (B,C)   0b1011,1100
+      val A      = 10.to[Q4]
+      val B      = 11.to[Q4]
+      val C      = 12.to[Q4]
+      val vL     = Vector.ZeroLast(A, B, C)
+      val bitsL  = vL.as12b
+      val sliceL = bitsL(7 :: 0) // bits from (B,C)   0b1011,1100
 
-      val vB = Vector.ZeroFirst(A, B, C)
-      val bitsB = vB.as12b
-      val sliceB = bitsB(0::7) // bits from (A,B)   0b1011,1010
+      val vB     = Vector.ZeroFirst(A, B, C)
+      val bitsB  = vB.as12b
+      val sliceB = bitsB(0 :: 7) // bits from (A,B)   0b1011,1010
 
       val x = vB(0)
 
-      println(vL(1::0).asVector2) // Should be Vector.ZeroFirst(12,11)
-      println(vB(0::1).asVector2) // Should be Vector.ZeroFirst(10,11)
+      println(vL(1 :: 0).asVector2) // Should be Vector.ZeroFirst(12,11)
+      println(vB(0 :: 1).asVector2) // Should be Vector.ZeroFirst(10,11)
 
       println(bitsL) // Should be 0b1010,1011,1100
       println(bitsB) // Should be 0b1100,1011,1010
@@ -71,8 +70,8 @@ object UserVectors extends SpatialTest {
 object TwiddlingWithStructs extends SpatialTest {
   import IR._
 
-  type UInt8 = FixPt[FALSE,_8,_0]
-  type SInt8 = FixPt[TRUE,_8,_0]
+  type UInt8 = FixPt[FALSE, _8, _0]
+  type SInt8 = FixPt[TRUE, _8, _0]
 
   @struct class UBytes(a: UInt8, b: UInt8, c: UInt8, d: UInt8)
   @struct class SBytes(a: SInt8, b: SInt8, c: SInt8, d: SInt8)
@@ -108,10 +107,10 @@ object ShiftTest extends SpatialTest {
 
   @virtualize def main(): Unit = {
     Accel {
-      val x = args(0).to[Int]
-      val m = args(1).to[Int]
-      val lsh = x << m
-      val rsh = x >> m
+      val x    = args(0).to[Int]
+      val m    = args(1).to[Int]
+      val lsh  = x << m
+      val rsh  = x >> m
       val ursh = x >>> m
       assert(lsh == -56, "lsh: " + lsh + ", expected: -56")
       assert(rsh == -4, "rsh: " + rsh + ", expected: -3")
@@ -125,6 +124,8 @@ class BitTwiddling extends FlatSpec with Matchers with Exceptions {
 
   "Bit selection" should "compile" in { BitSelects.main(Array.empty) }
   "UserVectors" should "compile" in { UserVectors.main(Array.empty) }
-  "TwiddlingWithStructs" should "compile" in { TwiddlingWithStructs.main(Array.empty) }
+  "TwiddlingWithStructs" should "compile" in {
+    TwiddlingWithStructs.main(Array.empty)
+  }
   "ShiftTest" should "compile" in { ShiftTest.main(Array.empty) }
 }

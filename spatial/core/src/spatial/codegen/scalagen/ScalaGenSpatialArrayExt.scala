@@ -10,21 +10,22 @@ trait ScalaGenSpatialArrayExt extends ScalaGenArray {
   import IR._
 
   override protected def emitNode(lhs: Sym[_], rhs: Op[_]): Unit = rhs match {
-    case ArrayUpdate(array, i, data) => emit(src"val $lhs = $array.update($i, $data)")
-    case MapIndices(size, func, i)   =>
+    case ArrayUpdate(array, i, data) =>
+      emit(src"val $lhs = $array.update($i, $data)")
+    case MapIndices(size, func, i) =>
       open(src"val $lhs = Array.tabulate($size){bbb => ")
-        emit(src"val $i = Number(bbb)")
-        emitBlock(func)
+      emit(src"val $i = Number(bbb)")
+      emitBlock(func)
       close("}")
 
-    case ArrayForeach(array,apply,func,i) =>
+    case ArrayForeach(array, apply, func, i) =>
       open(src"val $lhs = $array.indices.foreach{bbb => ")
       emit(src"val $i = Number(bbb)")
       visitBlock(apply)
       emitBlock(func)
       close("}")
 
-    case ArrayMap(array,apply,func,i) =>
+    case ArrayMap(array, apply, func, i) =>
       open(src"val $lhs = Array.tabulate($array.length){bbb => ")
       emit(src"val $i = Number(bbb)")
       visitBlock(apply)
@@ -57,4 +58,3 @@ trait ScalaGenSpatialArrayExt extends ScalaGenArray {
     case _ => super.emitNode(lhs, rhs)
   }
 }
-

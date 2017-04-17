@@ -8,12 +8,15 @@ import chisel3._
 import scala.collection.mutable.HashMap
 
 /**
- * Counter configuration format
- */
-case class CounterOpcode(val w: Int, val startDelayWidth: Int, val endDelayWidth: Int) extends Bundle {
-  val max = UInt(w.W)
-  val stride = UInt(w.W)
-  val maxConst = Bool()
+  * Counter configuration format
+  */
+case class CounterOpcode(val w: Int,
+                         val startDelayWidth: Int,
+                         val endDelayWidth: Int)
+    extends Bundle {
+  val max         = UInt(w.W)
+  val stride      = UInt(w.W)
+  val maxConst    = Bool()
   val strideConst = Bool()
   val startDelay = {
     val delayWidth = math.max(startDelayWidth, 1)
@@ -27,30 +30,34 @@ case class CounterOpcode(val w: Int, val startDelayWidth: Int, val endDelayWidth
   val onlyDelay = Bool()
 
   override def cloneType(): this.type = {
-    new CounterOpcode(w, startDelayWidth, endDelayWidth).asInstanceOf[this.type]
+    new CounterOpcode(w, startDelayWidth, endDelayWidth)
+      .asInstanceOf[this.type]
   }
 }
 
 /**
- * CounterCore: Counter with optional start and end delays
- * @param w: Word width
- * @param startDelayWidth: Width of start delay counter
- * @param endDelayWidth: Width of end delay counter
- */
-class CounterCore(val w: Int, val startDelayWidth: Int = 0, val endDelayWidth: Int = 0) extends Module {
+  * CounterCore: Counter with optional start and end delays
+  * @param w: Word width
+  * @param startDelayWidth: Width of start delay counter
+  * @param endDelayWidth: Width of end delay counter
+  */
+class CounterCore(val w: Int,
+                  val startDelayWidth: Int = 0,
+                  val endDelayWidth: Int = 0)
+    extends Module {
   val io = IO(new Bundle {
-    val max      = Input(UInt(w.W))
-    val stride   = Input(UInt(w.W))
-    val configuredMax = Output(UInt(w.W))
-    val out      = Output(UInt(w.W))
-    val next     = Output(UInt(w.W))
-    val enable    = Input(Bool())
+    val max             = Input(UInt(w.W))
+    val stride          = Input(UInt(w.W))
+    val configuredMax   = Output(UInt(w.W))
+    val out             = Output(UInt(w.W))
+    val next            = Output(UInt(w.W))
+    val enable          = Input(Bool())
     val enableWithDelay = Output(Bool())
-    val waitIn    = Input(Bool())
-    val waitOut    = Output(Bool())
-    val done   = Output(Bool())
-    val isMax  = Output(Bool())
-    val config = Input(CounterOpcode(w, startDelayWidth, endDelayWidth))
+    val waitIn          = Input(Bool())
+    val waitOut         = Output(Bool())
+    val done            = Output(Bool())
+    val isMax           = Output(Bool())
+    val config          = Input(CounterOpcode(w, startDelayWidth, endDelayWidth))
   })
 
   // Actual counter
@@ -73,7 +80,9 @@ class CounterCore(val w: Int, val startDelayWidth: Int = 0, val endDelayWidth: I
 
     val localEnable = io.enable & ~io.waitIn
     startDelayCounter.io.enable := localEnable
-    startDelayCounter.io.reset := Mux(io.config.onlyDelay, ~io.enable, counter.io.done)
+    startDelayCounter.io.reset := Mux(io.config.onlyDelay,
+                                      ~io.enable,
+                                      counter.io.done)
     counter.io.enable := startDelayCounter.io.done & ~depulser.io.out
     io.enableWithDelay := startDelayCounter.io.done
   } else {
@@ -99,8 +108,6 @@ class CounterCore(val w: Int, val startDelayWidth: Int = 0, val endDelayWidth: I
     counter.io.reset := false.B
     io.done := counter.io.done
   }
-
-
 
   // Control signal wiring up
 //  io.waitOut := depulser.io.out | counter.io.done | endDelayCounter.io.enable

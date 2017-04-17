@@ -1,7 +1,7 @@
 import scala.reflect.ClassTag
 
-case class LineBuffer[T:ClassTag](rows: Int, cols: Int, invalid: T) {
-  val buffers: Array[Array[T]] = Array.fill(rows){ Array.fill(cols)(invalid) }
+case class LineBuffer[T: ClassTag](rows: Int, cols: Int, invalid: T) {
+  val buffers: Array[Array[T]] = Array.fill(rows) { Array.fill(cols)(invalid) }
 
   private var start = 0
   private def rotatedRow(row: Int) = {

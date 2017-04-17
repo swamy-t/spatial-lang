@@ -1,15 +1,13 @@
 import org.virtualized._
 import spatial._
 
-
 // /*
 //   Sketch of app:
-
 
 //     ################
 //     # Inner Kernel #
 //     ################
-//                        diag_index                              
+//                        diag_index
 //                      __↓_______        ___________________
 //                     |\         |      |                   |
 //             diag_index\        |  diag_index      B       |
@@ -22,53 +20,47 @@ import spatial._
 //                  |  |        \ |      |                   |
 //                  ↳  |_________\|      |___________________|
 
-//          __N_       ___K___       
+//          __N_       ___K___
 //         |    |     |       |
-//       N |    |   N |       |                                 
-//         |____|     |_______|                               
-//   full_N     .     .       .                                                                     
-//         .    .     .       .                                  
-//         .    .     .       .                                        
-//         ......     .........                   
+//       N |    |   N |       |
+//         |____|     |_______|
+//   full_N     .     .       .
+//         .    .     .       .
+//         .    .     .       .
+//         ......     .........
 
-//                   *Make DRAMs match big rectangles so                                 
-//                      maxj doesn't complain, but only fill                              
-//                      and load valid stuff                                  
-
+//                   *Make DRAMs match big rectangles so
+//                      maxj doesn't complain, but only fill
+//                      and load valid stuff
 
 //     ##################
 //     # MatMult Kernel #
 //     ##################
 
-
 //                 Horizontal Blocking
-//                 _______________     _________LDB___________     
-//                |               |   |                       |    
-//                |               |   |                       |    
-//                |      id0      |   |                       |    
-//                |__LDA__↓       |   |_______________________|    
-//                |_______|_\     |  inner_N__________________|    
-//                |               |   |                       |    
-//                |               |   |                       |    
-//                |_______________|   |_______________________|    
-
+//                 _______________     _________LDB___________
+//                |               |   |                       |
+//                |               |   |                       |
+//                |      id0      |   |                       |
+//                |__LDA__↓       |   |_______________________|
+//                |_______|_\     |  inner_N__________________|
+//                |               |   |                       |
+//                |               |   |                       |
+//                |_______________|   |_______________________|
 
 //                 Vertical Blocking
 
-
-//                 _______________     _________LDB___________                                                                     
-//                |               |   |                       |                                                                                                        
-//                |               |   |                       |                                                                                                        
-//                |               |   |                       |                                                                                                        
-//                |  id0,1        |   |_______________________|                                       
-//                |    ↳|_\       |  K|_______________________|                                       
-//                |     | |       |   |                       |                                       
-//                |   LDA |       |   |                       |                                                                   
-//                |_____|_|_______|   |_______________________|                                              
-
+//                 _______________     _________LDB___________
+//                |               |   |                       |
+//                |               |   |                       |
+//                |               |   |                       |
+//                |  id0,1        |   |_______________________|
+//                |    ↳|_\       |  K|_______________________|
+//                |     | |       |   |                       |
+//                |   LDA |       |   |                       |
+//                |_____|_|_______|   |_______________________|
 
 // */
-
 
 object TRSM extends SpatialApp { // Regression (Dense) // Args: none
   import IR._
@@ -79,8 +71,8 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
   //   B: SRAM[T], LDB: Int,
   //   K: Int) = {
 
-  //   Sequential.Foreach(id0 by 1) { k => 
-  //     Sequential.Foreach(K by 1, LDB by 1) { (i,j) => 
+  //   Sequential.Foreach(id0 by 1) { k =>
+  //     Sequential.Foreach(K by 1, LDB by 1) { (i,j) =>
   //       val Laddr0 = id0 + i
   //       val data = Mux(id0 == 0, B(Laddr0,j), B(Laddr0,j) - L(Laddr0,k)*B(k,j))
   //       B(Laddr0,j) = data
@@ -138,7 +130,6 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
   //     }{ (C_tile, update_tile) => C_tile*beta + update_tile }
   //     Pipe(LDA by 1, LDB by 1){ (i,j) => C(i,j) = C_part(i,j) }
 
-
   //     // ALTERNATIVE 3: By inner products, direct access
   //     Sequential(LDA by 1, LDB by 1) { (i,j) =>
   //       val update = Reduce(K by 1)(0.to[T]) { k => A(i,k)*B(k,j) }{_+_}
@@ -147,10 +138,9 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
 
   //   }
 
-
   val inner_N = 4 // inner_N < k usually
-  val full_N = 8
-  val full_K = 8
+  val full_N  = 8
+  val full_K  = 8
   // val aligned_N = 192
   val margin = 1
 
@@ -161,7 +151,6 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
     val OCX = DRAM[T](full_N * full_K)
     setMem(OCB, B)
     setMem(OCL, L)
-
 
     Accel {
       val B = SRAM[T](full_N, full_K)
@@ -181,15 +170,19 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
         Sequential.Foreach(diag_tile by 1) { k =>
           Sequential.Foreach(inner_N by 1, full_K by 1) { (i, j) =>
             val Laddr0 = diag_tile + i
-            val data = mux(diag_tile.to[Int] == 0.to[Int], B(Laddr0, j), B(Laddr0, j) - L(Laddr0, k) * B(k, j))
+            val data = mux(diag_tile.to[Int] == 0.to[Int],
+                           B(Laddr0, j),
+                           B(Laddr0, j) - L(Laddr0, k) * B(k, j))
             B(Laddr0, j) = data
           }
         }
 
         Sequential(inner_N by 1) { diag_index =>
           val diag_addr = diag_index + diag_tile
-          val lambda = L(diag_addr, diag_addr)
-          Sequential.Foreach(full_K by 1) { k => B(diag_addr, k) = B(diag_addr, k) / lambda }
+          val lambda    = L(diag_addr, diag_addr)
+          Sequential.Foreach(full_K by 1) { k =>
+            B(diag_addr, k) = B(diag_addr, k) / lambda
+          }
           // Rank 1 update (outer product, subtraction accumulator)
           val len = Reg[Int](0)
           Pipe {
@@ -198,7 +191,11 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
           Sequential.Foreach(len.value by 1) { i =>
             Sequential.Foreach(full_K by 1) { j =>
               val update_row = diag_addr + 1 + i
-              val data = mux(len.value == 0.to[Int], B(update_row, j), B(update_row, j) - L(update_row, diag_index) * B(diag_index, j))
+              val data = mux(
+                len.value == 0.to[Int],
+                B(update_row, j),
+                B(update_row, j) - L(update_row, diag_index) * B(diag_index,
+                                                                 j))
               B(update_row, j) = data
             }
           }
@@ -206,7 +203,11 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
 
       }
       // Pack result to 1D, to avoid burst alignment issues
-      Pipe(full_N by 1) { i => Pipe(full_K by 1) { j => X(i * full_K + j) = B(i, j) } }
+      Pipe(full_N by 1) { i =>
+        Pipe(full_K by 1) { j =>
+          X(i * full_K + j) = B(i, j)
+        }
+      }
       OCX(0 :: full_N * full_K) store X
     }
     getMem(OCX)
@@ -214,7 +215,9 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
 
   def printArr(a: Array[T], numel: Int, str: String = "") {
     println(str)
-    (0 until numel) foreach { i => print(a(i) + " ") }
+    (0 until numel) foreach { i =>
+      print(a(i) + " ")
+    }
     println("")
   }
 
@@ -240,28 +243,43 @@ object TRSM extends SpatialApp { // Regression (Dense) // Args: none
     printArr(L.flatten, full_N * full_N, "L: ")
     printArr(result, full_N * full_K, "X: ")
 
-    val X_check = Array.tabulate(full_N) { i => Array.tabulate(full_K) { j => result(i * full_K + j) } }
+    val X_check = Array.tabulate(full_N) { i =>
+      Array.tabulate(full_K) { j =>
+        result(i * full_K + j)
+      }
+    }
     val L_check = Array.tabulate(full_N) { i =>
       Array.tabulate(full_N) { j =>
         val row = L(i)
         row(j)
       }
     }
-    val B_check = Array.tabulate(full_N) { i =>
-      Array.tabulate(full_K) { j =>
-        val row = B(i)
-        row(j)
+    val B_check = Array
+      .tabulate(full_N) { i =>
+        Array.tabulate(full_K) { j =>
+          val row = B(i)
+          row(j)
+        }
       }
-    }.flatten
-    val B_computed = Array.tabulate(full_N) { i =>
-      val aRow = L_check(i)
-      Array.tabulate(full_K) { j =>
-        val bCol = X_check.map { row => row(j) }
-        aRow.zip(bCol){_*_}.reduce{_+_}
+      .flatten
+    val B_computed = Array
+      .tabulate(full_N) { i =>
+        val aRow = L_check(i)
+        Array.tabulate(full_K) { j =>
+          val bCol = X_check.map { row =>
+            row(j)
+          }
+          aRow.zip(bCol) { _ * _ }.reduce { _ + _ }
+        }
       }
-    }.flatten
+      .flatten
 
-    val cksum = B_check.zip(B_computed) { (a, b) => a > b - margin && a < b + margin }.reduce{_&&_}
-    println("PASS: " + cksum + " (TRSM) * Need to test with bigger dimensions!")
+    val cksum = B_check
+      .zip(B_computed) { (a, b) =>
+        a > b - margin && a < b + margin
+      }
+      .reduce { _ && _ }
+    println(
+      "PASS: " + cksum + " (TRSM) * Need to test with bigger dimensions!")
   }
 }

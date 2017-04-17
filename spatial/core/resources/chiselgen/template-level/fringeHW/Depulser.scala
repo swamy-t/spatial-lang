@@ -3,11 +3,11 @@ package fringe
 import chisel3._
 
 /**
- * Depulser: 1-cycle pulse to a steady high signal
- */
+  * Depulser: 1-cycle pulse to a steady high signal
+  */
 class Depulser() extends Module {
   val io = IO(new Bundle {
-    val in = Input(Bool())
+    val in  = Input(Bool())
     val rst = Input(Bool())
     val out = Output(Bool())
   })

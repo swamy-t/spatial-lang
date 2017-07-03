@@ -19,7 +19,12 @@ using namespace std;
 
 #include <DRAMSim.h>
 
-#define MAX_NUM_Q 128
+#define MAX_NUM_Q 64
+
+// N3XT constants
+#define N3XT_LOAD_DELAY 3
+#define N3XT_STORE_DELAY 11
+#define N3XT_NUM_CHANNELS 1
 
 // DRAMSim3
 DRAMSim::MultiChannelMemorySystem *mem = NULL;
@@ -32,9 +37,10 @@ uint32_t burstSizeBytes = 64;
 uint32_t burstSizeWords = burstSizeBytes / wordSizeBytes;
 
 uint64_t sparseRequestCounter = 0;  // Used to provide unique tags to each sparse request
-
+uint64_t globalID = 0;
 class DRAMRequest {
 public:
+  uint64_t id;
   uint64_t addr;
   uint64_t rawAddr;
   uint32_t streamId;
@@ -49,6 +55,7 @@ public:
   bool completed;
 
   DRAMRequest(uint64_t a, uint64_t ra, uint32_t sid, uint64_t t, bool wr, bool sparse, uint32_t *wd, uint64_t issueCycle) {
+    id = globalID++;
     addr = a;
     rawAddr = ra;
     streamId = sid;
@@ -64,7 +71,13 @@ public:
       wdata = NULL;
     }
 
-    delay = abs(rand()) % 150 + 50;
+    // N3xt delay
+    if (isWr) {
+      delay = N3XT_STORE_DELAY;
+    } else {
+      delay = N3XT_LOAD_DELAY;
+    }
+//    delay = abs(rand()) % 150 + 50;
     elapsed = 0;
     issued = issueCycle;
     completed = false;
@@ -122,9 +135,7 @@ void printQueueStats(int id) {
   EPRINTF("==== END dramRequestQ %d status =====\n", id);
 }
 
-bool checkQAndRespond(int id) {
-  // If request happens to be in front of deque, pop and poke DRAM response
-  bool pokedResponse = false;
+void updateIdealDRAMQ(int id) {
   if (dramRequestQ[id].size() > 0) {
     DRAMRequest *req = dramRequestQ[id].front();
 
@@ -135,11 +146,46 @@ bool checkQAndRespond(int id) {
         if (debug) {
           EPRINTF("[idealDRAM txComplete] addr = %p, tag = %lx, finished = %lu\n", (void*)req->addr, req->tag, numCycles);
         }
+
       }
     }
+  }
+}
+
+bool checkQAndRespond(int id) {
+  // If request happens to be in front of deque, pop and poke DRAM response
+  bool pokedResponse = false;
+  if (dramRequestQ[id].size() > 0) {
+    DRAMRequest *req = dramRequestQ[id].front();
+
+//    if (useIdealDRAM) {
+//      req->elapsed++;
+//      if (req->elapsed >= req->delay) {
+//        req->completed = true;
+//        if (debug) {
+//          EPRINTF("[idealDRAM txComplete] addr = %p, tag = %lx, finished = %lu\n", (void*)req->addr, req->tag, numCycles);
+//        }
+//
+//      }
+//    }
 
     if (req->completed) {
       if (!req->isSparse) {
+
+        // N3Xt logging info
+        EPRINTF("id: %lu\n", req->id);
+        if (req->isWr) {
+          EPRINTF("type: STORE\n");
+        } else {
+          EPRINTF("type: LOAD\n");
+        }
+        EPRINTF("delay: %d\n", numCycles - req->issued);
+        EPRINTF("addr: %lu\n", req->addr);
+        EPRINTF("size: %u\n", burstSizeBytes);
+        EPRINTF("stream ID: %d\n", id);
+        EPRINTF("\n");
+
+
         dramRequestQ[id].pop_front();
         if (debug) {
           EPRINTF("[Sending DRAM resp to]: ");
@@ -272,6 +318,11 @@ void checkAndSendDRAMResponse() {
   uint32_t ready = (uint32_t)*dramRespReady;
 
   if (ready > 0) {
+    if (useIdealDRAM) {
+      for (int i =0; i < MAX_NUM_Q; i++) {
+        updateIdealDRAMQ(i);
+      }
+    }
     // Iterate over all queues and respond to the first non-empty queue
     for (int i =0; i < MAX_NUM_Q; i++) {
       if (checkQAndRespond(i)) break;
@@ -439,7 +490,11 @@ extern "C" {
     }
 
     if (dramReady == 1) {
-      dramRequestQ[cmdStreamId].push_back(req);
+      if (useIdealDRAM) {
+        dramRequestQ[req->id % MAX_NUM_Q].push_back(req);
+      } else {
+        dramRequestQ[cmdStreamId].push_back(req);
+      }
     }
 
     return dramReady;
@@ -483,12 +538,12 @@ void initDRAM() {
     // Connect to DRAMSim2 directly here
 		
 		//TODO: CHANGE THIS
-		mem = DRAMSim::getMemorySystemInstance("ini/MAXJ_FPGA.ini", "spatial.dram.ini", dramSimHome, "dramSimVCS", 16384);
-		//mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_32M_8B_x4_sg125.ini", "spatial.dram.ini", dramSimHome, "dramSimVCS", 16384);
+		//mem = DRAMSim::getMemorySystemInstance("ini/MAXJ_FPGA.ini", "spatial.dram.ini", dramSimHome, "dramSimVCS", 16384);
+		mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_32M_8B_x4_sg125.ini", "spatial.dram.ini", dramSimHome, "dramSimVCS", 16384);
 
 		//TODO: CHANGE THIS
-		uint64_t hardwareClockHz = 1 * 150e6; // Fixing Plasticine clock to 1 GHz
-		//uint64_t hardwareClockHz = 1 * 1e9; // Fixing Plasticine clock to 1 GHz
+//		uint64_t hardwareClockHz = 1 * 150e6; // Fixing Plasticine clock to 1 GHz
+		uint64_t hardwareClockHz = 1 * 1e9; // Fixing Plasticine clock to 1 GHz
 		mem->setCPUClockSpeed(hardwareClockHz);
 
     // Add callbacks

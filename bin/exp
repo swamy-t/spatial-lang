@@ -114,7 +114,7 @@ def target(app, args, params, regen):
 
 def testRun():
     print('Testing with small sizes')
-    # target('DotProduct', [6400], {'ts':320, 'ip':4, 'op':4}, regen='true')
+    target('DotProduct', [6400], {'ts':320, 'ip':4, 'op':4}, regen='true')
     # target('OuterProduct', [192, 192], {'ts1':48, 'ts2':48, 'ip':2, 'op':2}, regen='true')
     # target('MatMult_inner', [32, 96, 96], {'tsm':16, 'tsn':48, 'tsp':48, 'ip':2, 'mp':8, 'op':2},regen='true')
     # target('BlackScholes', [9600], {'ip':16, 'op':1, 'ts':320}, regen='true')

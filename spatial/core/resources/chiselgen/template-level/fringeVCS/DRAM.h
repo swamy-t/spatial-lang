@@ -17,6 +17,7 @@ using namespace std;
 #include "vc_hdrs.h"
 #include "svdpi_src.h"
 
+#include <AddrRemapper.h>
 #include <DRAMSim.h>
 
 #define MAX_NUM_Q 64
@@ -33,6 +34,7 @@ FILE *traceFp = NULL;
 DRAMSim::MultiChannelMemorySystem *mem = NULL;
 bool useIdealDRAM = false;
 bool debug = false;
+AddrRemapper *remapper = NULL;
 
 extern uint64_t numCycles;
 uint32_t wordSizeBytes = 4;
@@ -45,6 +47,7 @@ class DRAMRequest {
 public:
   uint64_t id;
   uint64_t addr;
+  uint64_t smallAddr;
   uint64_t rawAddr;
   uint32_t streamId;
   uint64_t tag;
@@ -59,7 +62,8 @@ public:
 
   DRAMRequest(uint64_t a, uint64_t ra, uint32_t sid, uint64_t t, bool wr, bool sparse, uint32_t *wd, uint64_t issueCycle) {
     id = globalID++;
-    addr = a;
+    addr = remapper->getBig(a);
+    smallAddr = a;
     rawAddr = ra;
     streamId = sid;
     tag = t;
@@ -184,7 +188,7 @@ bool checkQAndRespond(int id) {
           fprintf(traceFp, "type: LOAD\n");
         }
         fprintf(traceFp, "delay: %d\n", numCycles - req->issued);
-        fprintf(traceFp, "addr: %lu\n", req->addr);
+        fprintf(traceFp, "addr: %lu\n", req->smallAddr);
         fprintf(traceFp, "size: %u\n", burstSizeBytes);
         fprintf(traceFp, "channel: %d\n", req->channelID);
         fprintf(traceFp, "\n");
@@ -557,6 +561,9 @@ void initDRAM() {
     DRAMSim::TransactionCompleteCB *rwCb = new DRAMSim::Callback<DRAMCallbackMethods, void, unsigned, uint64_t, uint64_t, uint64_t>(&callbackMethods, &DRAMCallbackMethods::txComplete);
     mem->RegisterCallbacks(rwCb, rwCb, NULL);
   }
+
+  // Instantiate 64-to-32-bit address remapper
+  remapper = new AddrRemapper();
 
   // Open trace file
   char *traceFileName = NULL;

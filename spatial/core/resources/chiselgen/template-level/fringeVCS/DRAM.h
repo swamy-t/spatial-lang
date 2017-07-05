@@ -26,6 +26,9 @@ using namespace std;
 #define N3XT_STORE_DELAY 11
 #define N3XT_NUM_CHANNELS 1
 
+// Simulation constants
+FILE *traceFp = NULL;
+
 // DRAMSim3
 DRAMSim::MultiChannelMemorySystem *mem = NULL;
 bool useIdealDRAM = false;
@@ -173,17 +176,18 @@ bool checkQAndRespond(int id) {
       if (!req->isSparse) {
 
         // N3Xt logging info
-        EPRINTF("id: %lu\n", req->id);
+        fprintf(traceFp, "id: %lu\n", req->id);
+        fprintf(traceFp, "issue: %lu\n", req->issued);
         if (req->isWr) {
-          EPRINTF("type: STORE\n");
+          fprintf(traceFp, "type: STORE\n");
         } else {
-          EPRINTF("type: LOAD\n");
+          fprintf(traceFp, "type: LOAD\n");
         }
-        EPRINTF("delay: %d\n", numCycles - req->issued);
-        EPRINTF("addr: %lu\n", req->addr);
-        EPRINTF("size: %u\n", burstSizeBytes);
-        EPRINTF("stream ID: %d\n", id);
-        EPRINTF("\n");
+        fprintf(traceFp, "delay: %d\n", numCycles - req->issued);
+        fprintf(traceFp, "addr: %lu\n", req->addr);
+        fprintf(traceFp, "size: %u\n", burstSizeBytes);
+        fprintf(traceFp, "channel: %d\n", req->channelID);
+        fprintf(traceFp, "\n");
 
 
         dramRequestQ[id].pop_front();
@@ -487,11 +491,13 @@ extern "C" {
           EPRINTF("[sendDRAMRequest] Skipping addr = %lx (%lx), tag = %lx\n", cmdAddr, cmdRawAddr, cmdTag);
         }
       }
+    } else { // ideal DRAM
+      req->channelID = req->id % MAX_NUM_Q;
     }
 
     if (dramReady == 1) {
       if (useIdealDRAM) {
-        dramRequestQ[req->id % MAX_NUM_Q].push_back(req);
+        dramRequestQ[req->channelID].push_back(req);
       } else {
         dramRequestQ[cmdStreamId].push_back(req);
       }
@@ -551,5 +557,15 @@ void initDRAM() {
     DRAMSim::TransactionCompleteCB *rwCb = new DRAMSim::Callback<DRAMCallbackMethods, void, unsigned, uint64_t, uint64_t, uint64_t>(&callbackMethods, &DRAMCallbackMethods::txComplete);
     mem->RegisterCallbacks(rwCb, rwCb, NULL);
   }
+
+  // Open trace file
+  char *traceFileName = NULL;
+  if (useIdealDRAM) {
+    traceFileName = "trace_n3xt.log";
+  } else {
+    traceFileName = "trace_baseline.log";
+  }
+  traceFp = fopen(traceFileName, "w");
+  ASSERT(traceFp != NULL, "Unable to open file %s!\n", traceFileName);
 }
 

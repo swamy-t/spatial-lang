@@ -203,6 +203,7 @@ extern "C" {
           if (!useIdealDRAM) {
             mem->printStats(true);
           }
+          fclose(traceFp);
           finishSim = 1;
 
           simCmd resp;

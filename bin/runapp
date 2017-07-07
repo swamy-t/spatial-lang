@@ -18,24 +18,28 @@ timestemp=$(date +"%c")
 echo $app
 
 if [ $regen = true ]; then
-	rm -r gen/$app
+	rm -rf gen/$app
 	mkdir gen/$app
-	bin/spatial $app --synth >> gen/$app/sim.log 2>&1
+	bin/spatial $app --synth 2>&1 | tee gen/$app/spatial-build.log
 fi
 
+## VCS build
 cd gen/$app/
 
 if [ $regen = true ]; then
-	make vcs >> sim.log 2>&1
+	make vcs 2>&1 | tee vcs-build.log
+  echo $args > args
 fi
 
-chmod u+wrx run.sh
-./run.sh $args >> sim.log 2>&1
-cycle=$(grep "Design ran for" sim.log)
-pass=$(grep "PASS" sim.log)
 
-cd ../../
-echo "$timestemp $app $cycle args=[$args] $pass" >> $LOG_FILE 
-echo "$timestemp $app $cycle args=[$args] $pass"
-
-#trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+## Sim Start
+#chmod u+wrx run.sh
+#./run.sh $args 2>&1 | tee sim.log
+#cycle=$(grep "Design ran for" sim.log)
+#pass=$(grep "PASS" sim.log)
+#
+#cd ../../
+#echo "$timestemp $app $cycle args=[$args] $pass" >> $LOG_FILE 
+#echo "$timestemp $app $cycle args=[$args] $pass"
+#
+##trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT

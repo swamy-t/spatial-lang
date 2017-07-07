@@ -105,6 +105,7 @@ def status(app, args, params, regen):
     proc.kill()
 
 def target(app, args, params, regen):
+    print("app: %s\n" %(app))
     if opts.run:
         runApp(app, args, params, regen)
     elif opts.kill:
@@ -115,14 +116,14 @@ def target(app, args, params, regen):
 def testRun():
     print('Testing with small sizes')
     target('DotProduct', [6400], {'ts':320, 'ip':4, 'op':4}, regen='true')
-    # target('OuterProduct', [192, 192], {'ts1':48, 'ts2':48, 'ip':2, 'op':2}, regen='true')
-    # target('MatMult_inner', [32, 96, 96], {'tsm':16, 'tsn':48, 'tsp':48, 'ip':2, 'mp':8, 'op':2},regen='true')
-    # target('BlackScholes', [9600], {'ip':16, 'op':1, 'ts':320}, regen='true')
-    # target('TPCHQ6', [384], {'ip':2, 'op':1, 'ts':2000}, regen='true')
-    # target('GDA', [128], {'ip':16, 'op':2,  'ts':32}, regen='true')
-    # target('LogReg', [2, 64], {'ip':4, 'op':2, 'ts':16, 'dim':16}, regen='true') 
-    # target('SMV', [768], {'ip':16, 'op':4, 'pp':3840, 'NNZ':60}, regen='true') 
-    # target('SGD', [40, 32, 0.0001], {'ip':16, 'op':12, 'ts':16, 'D':16}, regen='true') 
+    target('OuterProduct', [192, 192], {'ts1':48, 'ts2':48, 'ip':2, 'op':2}, regen='true')
+    target('MatMult_inner', [32, 96, 96], {'tsm':16, 'tsn':48, 'tsp':48, 'ip':2, 'mp':8, 'op':2},regen='true')
+    target('TPCHQ6', [3840], {'ip':2, 'op':1, 'ts':2000}, regen='true')
+    target('GDA', [128], {'ip':16, 'op':2,  'ts':32}, regen='true')
+#    target('BlackScholes', [9600], {'ip':16, 'op':1, 'ts':320}, regen='true')
+#    target('LogReg', [2, 64], {'ip':4, 'op':2, 'ts':16, 'dim':16}, regen='true') 
+#    target('SMV', [768], {'ip':16, 'op':4, 'pp':3840, 'NNZ':60}, regen='true') 
+#    target('SGD', [40, 32, 0.0001], {'ip':16, 'op':12, 'ts':16, 'D':16}, regen='true') 
 
 def fpgaRun():
     # target('MatMult_inner', [48, 768, 384], {'tsm':8, 'tsn':192, 'tsp':192, 'ip':16, 'mp':1, 'op':2,'fpga':'true'}, regen='true')
@@ -152,7 +153,7 @@ def expRun():
     # target('DotProduct', [768000], {'ts':3840, 'ip':16, 'op':16}, regen='true') #not finishing
     # target('DotProduct', [768000], {'ts':2560, 'ip':16, 'op':10}, regen='true')
     # target('DotProduct', [768000], {'ts':1920, 'ip':16, 'op':10}, regen='true')
-    # target('DotProduct', [768000], {'ts':1920, 'ip':16, 'op':8}, regen='true')
+    target('DotProduct', [768000], {'ts':1920, 'ip':16, 'op':8}, regen='true')
     # target('DotProduct', [768000], {'ts':1920, 'ip':16, 'op':4}, regen='true')
 
     # target('DotProduct', [768000], {'ts':3200, 'ip':16, 'op':10}, regen='true')
@@ -163,7 +164,7 @@ def expRun():
 
     # target('OuterProduct', [192, 192], {'ts1':48, 'ts2':48, 'ip':16, 'op':10}, regen='true') #not finishing
     # target('OuterProduct', [192, 192], {'ts1':48, 'ts2':48, 'ip':16, 'op':10}, regen='true') #not finishing
-    # target('OuterProduct', [3840, 3840], {'ts1':96, 'ts2':96, 'ip':16, 'op':10}, regen='true')
+    target('OuterProduct', [3840, 3840], {'ts1':96, 'ts2':96, 'ip':16, 'op':10}, regen='true')
     # target('OuterProduct', [3840, 3840], {'ts1':192, 'ts2':96, 'ip':16, 'op':10}, regen='true')
     # target('OuterProduct', [3840, 3840], {'ts1':384, 'ts2':96, 'ip':16, 'op':10}, regen='true')
     # target('OuterProduct', [3840, 3840], {'ts1':96, 'ts2':192, 'ip':16, 'op':10}, regen='true')
@@ -200,7 +201,7 @@ def expRun():
     # target('MatMult_inner', [48, 768, 384], {'tsm':16, 'tsn':64, 'tsp':128, 'ip':16, 'mp':4, 'op':2}, regen='true')
     # target('MatMult_inner', [48, 768, 384], {'tsm':16, 'tsn':64, 'tsp':128, 'ip':16, 'mp':6, 'op':2}, regen='true')
 
-    # target('MatMult_inner', [48, 7680, 3840], {'tsm':16, 'tsn':64, 'tsp':128, 'ip':16, 'mp':6, 'op':2}, regen='true')
+    target('MatMult_inner', [48, 7680, 3840], {'tsm':16, 'tsn':64, 'tsp':128, 'ip':16, 'mp':6, 'op':2}, regen='true')
     # target('MatMult_inner', [48, 7680, 3840], {'tsm':16, 'tsn':48, 'tsp':48, 'ip':16, 'mp':16, 'op':2}, regen='true') # syntax error
     # target('MatMult_inner', [48, 7680, 3840], {'tsm':48, 'tsn':48, 'tsp':48, 'ip':16, 'mp':16, 'op':2}, regen='true') # syntax error
     # target('MatMult_inner', [48, 7680, 3840], {'tsm':48, 'tsn':64, 'tsp':48, 'ip':16, 'mp':16, 'op':2}, regen='true') # syntax error
@@ -237,7 +238,7 @@ def expRun():
     #################################################################################################################
     # target('BlackScholes', [98304],    {'ip':16, 'op':2,  'ts': 2048}, regen='true')
     # target('BlackScholes', [98304],    {'ip':16, 'op':2,  'ts': 4096}, regen='true')
-    # target('BlackScholes', [1966080],  {'ip':16, 'op':2,  'ts': 8192}, regen='true')
+    target('BlackScholes', [1966080],  {'ip':16, 'op':2,  'ts': 8192}, regen='true')
     # target('BlackScholes', [94371840], {'ip':16, 'op':2,  'ts': 8192}, regen='true')
     # target('BlackScholes', [94371840], {'ip':16, 'op':1,  'ts': 32768}, regen='true')
     #TODO
@@ -247,7 +248,7 @@ def expRun():
     # target('BlackScholes', [94371840], {'ip':16, 'op':1,  'ts': 65536}, regen='true')
 
     #################################################################################################################
-    # target('TPCHQ6', [96000], {'ip':16, 'op':1 , 'ts':2000}, regen='true')
+    target('TPCHQ6', [96000], {'ip':16, 'op':1 , 'ts':2000}, regen='true')
     # target('TPCHQ6', [96000], {'ip':16, 'op':2 , 'ts':2000}, regen='true')
     # target('TPCHQ6', [96000], {'ip':16, 'op':4 , 'ts':2000}, regen='true')
     # target('TPCHQ6', [96000], {'ip':16, 'op':6 , 'ts':2000}, regen='true')
@@ -268,7 +269,7 @@ def expRun():
 
     # target('TPCHQ6', [96000], {'ip':16, 'op':10, 'ts':4000}, regen='true')
     #################################################################################################################
-    # target('GDA', [384000], {'ip':16, 'op':4,  'ts':16}, regen='true')
+    target('GDA', [384000], {'ip':16, 'op':4,  'ts':16}, regen='true')
     # target('GDA', [384000], {'ip':16, 'op':6,  'ts':16}, regen='true')
     # target('GDA', [384000], {'ip':16, 'op':8,  'ts':16}, regen='true')
     # target('GDA', [384000], {'ip':16, 'op':10, 'ts':16}, regen='true')
@@ -314,7 +315,7 @@ def expRun():
     #################################################################################################################
     # args: iters, N
 
-    # target('LogReg', [5, 1536], {'ip':16, 'op':4,  'ts':16, 'dim':384}, regen='true') 
+    target('LogReg', [5, 1536], {'ip':16, 'op':4,  'ts':16, 'dim':384}, regen='true') 
     # target('LogReg', [5, 1536], {'ip':16, 'op':8,  'ts':16, 'dim':384}, regen='true') 
     # target('LogReg', [5, 1536], {'ip':16, 'op':10, 'ts':16, 'dim':384}, regen='true') 
     # target('LogReg', [5, 1536], {'ip':16, 'op':4,  'ts':32, 'dim':384}, regen='true') 
@@ -331,7 +332,7 @@ def expRun():
     # target('LogReg', [5, 1536], {'ip':16, 'op':6,  'ts':64, 'dim':384}, regen='true') 
     #################################################################################################################
     # numiter, N, alpha
-    # target('SGD', [30, 38400, 0.0001], {'ip':16, 'op':1, 'ts':384, 'D':16}, regen='true') 
+    target('SGD', [30, 38400, 0.0001], {'ip':16, 'op':1, 'ts':384, 'D':16}, regen='true') 
     # target('SGD', [30, 38400, 0.0001], {'ip':16, 'op':1, 'ts':3840, 'D':16}, regen='true') 
     # target('SGD', [30, 38400, 0.0001], {'ip':16, 'op':1, 'ts':3840, 'D':16}, regen='true') 
 
@@ -346,7 +347,7 @@ def expRun():
     # target('Kmeans', [1536, 20], {'ip':16, 'op':1, 'pts_per_ld':1, 'D':96}, regen='true') 
     # target('Kmeans', [50, 1536], {'ip':16, 'op':1, 'numcents':1, 'D':96}, regen='true')
 
-    # target('Kmeans', [50, 1536], {'ip':16, 'op':1, 'numcents':1, 'pts_per_ld': 384, 'D':96}, regen='true')
+    target('Kmeans', [50, 1536], {'ip':16, 'op':1, 'numcents':1, 'pts_per_ld': 384, 'D':96}, regen='true')
     # target('Kmeans', [50, 1536], {'ip':16, 'op':1, 'numcents':1, 'pts_per_ld': 768, 'D':96}, regen='true')
     #TODO
     # target('Kmeans', [50, 1536], {'ip':8, 'op':1, 'numcents':20, 'pts_per_ld': 96, 'D':96, 'fpga':'false'}, regen='true')

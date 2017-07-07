@@ -14,6 +14,7 @@ module test;
   export "DPI" function pokeDRAMResponse;
   export "DPI" function getDRAMRespReady;
   export "DPI" function writeStream;
+  export "DPI" function terminateSim;
 
   reg clock = 1;
   reg reset = 1;
@@ -170,6 +171,11 @@ module test;
 
   function void readRegRdataLo32(output bit [31:0] rdatalo);
     rdatalo = io_rdata[31:0];
+  endfunction
+
+  function void terminateSim();
+    $vcdplusflush;
+    $finish;
   endfunction
 
   function void writeReg(input int r, longint wdata);

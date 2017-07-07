@@ -99,8 +99,11 @@ extern "C" {
       free(cmd);
     }
 
+    numCycles++;
+
     // Drain an element from DRAM queue if it exists
     checkAndSendDRAMResponse();
+
 
     // Check if input stream has new data
     //inStream->send();
@@ -177,7 +180,7 @@ extern "C" {
           exitTick = true;
           break;
         case STEP:
-          numCycles++;
+
           exitTick = true;
           if (!useIdealDRAM) {
             mem->update();
